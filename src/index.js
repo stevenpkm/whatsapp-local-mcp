@@ -115,14 +115,14 @@ server.tool(
 
 server.tool(
   "list_chats",
-  "List WhatsApp chats from the local cache, sorted by most recent activity.",
+  "List WhatsApp chats from the local cache, sorted by most recent activity. Each chat has both `name` (human-friendly, e.g. \"XPENG MALAYSIA OWNER CLUB\" or \"Steve\") and `id` (raw WhatsApp JID like \"1234@g.us\"). ALWAYS refer to chats by `name` when talking to the user — the `id` is only for follow-up tool calls and should never be shown to the user.",
   { excludeGroups: z.boolean().optional().default(false) },
   async (args) => ok(await callBridge("POST", "/list-chats", args, 15_000))
 );
 
 server.tool(
   "get_recent_messages",
-  "Get messages from the last N hours from the local cache. Optionally filter to one chatId or exclude groups.",
+  "Get messages from the last N hours from the local cache. Optionally filter to one chatId or exclude groups. Each message includes `chat` (the chat's human-friendly name) and `from` (sender's name). NEVER show the raw chatId, msgId, or sender JID to the user — always speak in names. The IDs are only for follow-up tool calls (e.g. get_image needs chatId+msgId).",
   {
     hours: z.number().min(1).max(720).default(24),
     excludeGroups: z.boolean().optional().default(false),
@@ -134,7 +134,7 @@ server.tool(
 
 server.tool(
   "search_messages",
-  "Case-insensitive substring search across cached messages. Looks back `hours` hours (default 720 = 30 days).",
+  "Case-insensitive substring search across cached messages. Looks back `hours` hours (default 720 = 30 days). Returns `chat` and `from` as human-friendly names. NEVER show raw chat IDs or message IDs to the user.",
   {
     query: z.string().min(1),
     hours: z.number().min(1).max(2160).optional().default(720),

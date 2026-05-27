@@ -159,6 +159,9 @@ export async function createWhatsAppController({
         latestQR = null;
         lastError = null;
         if (onReady) onReady(sock);
+        // Background sweep: for any group still missing a name, fetch its
+        // metadata from WhatsApp. Sequential with small delay to be polite.
+        setTimeout(() => { fillMissingGroupNames().catch(() => {}); }, 3000);
       }
 
       if (connection === "close") {
@@ -181,6 +184,17 @@ export async function createWhatsAppController({
     sock.ev.on("chats.update", (chats) => { bumpActivity(); chats.forEach((c) => store.upsertChat(c)); });
     sock.ev.on("contacts.upsert", (cs) => { bumpActivity(); cs.forEach((c) => store.upsertContact(c)); });
     sock.ev.on("contacts.update", (cs) => { bumpActivity(); cs.forEach((c) => store.upsertContact(c)); });
+    // Group-specific events carry the group subject (name) more reliably than chats.*
+    sock.ev.on("groups.upsert", (groups) => {
+      bumpActivity();
+      for (const g of groups) store.upsertChat({ id: g.id, subject: g.subject, isGroup: true });
+    });
+    sock.ev.on("groups.update", (groups) => {
+      bumpActivity();
+      for (const g of groups) {
+        if (g?.id) store.upsertChat({ id: g.id, subject: g.subject, isGroup: true });
+      }
+    });
 
     sock.ev.on("messaging-history.set", (data) => {
       bumpActivity();
@@ -305,6 +319,33 @@ export async function createWhatsAppController({
     bumpActivity();
     connect();
     return { ok: true, message: "reconnecting" };
+  }
+
+  async function fillMissingGroupNames() {
+    if (!currentSock) return;
+    const missing = [];
+    for (const [id, chat] of store.chats.entries()) {
+      const isGroup = chat?.isGroup || (typeof id === "string" && id.endsWith("@g.us"));
+      if (!isGroup) continue;
+      if (chat?.name && chat.name !== id && chat.name !== id.split("@")[0]) continue;
+      missing.push(id);
+    }
+    if (!missing.length) return;
+    let filled = 0;
+    for (const jid of missing) {
+      if (stopped || !currentSock) break;
+      try {
+        const md = await currentSock.groupMetadata(jid);
+        if (md?.subject) {
+          store.upsertChat({ id: jid, subject: md.subject, isGroup: true });
+          filled++;
+        }
+      } catch (e) {
+        // Many failures are normal (kicked groups, network blips). Just skip.
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    if (filled > 0) console.error(`[whatsapp] filled ${filled}/${missing.length} missing group names`);
   }
 
   function getStatus() {
