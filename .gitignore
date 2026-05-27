@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Per-user state and secrets — NEVER commit
+auth/
+data/
+api-key.txt
+anthropic-key.txt
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Desktop config backups created by install-mcp-config.mjs
+*.backup-*

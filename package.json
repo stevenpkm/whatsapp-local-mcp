@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-mcp-readonly",
+  "version": "0.3.0",
+  "description": "Read-only WhatsApp MCP for Cowork. Bridge process holds the WhatsApp connection; MCP server is a thin HTTP client.",
+  "type": "module",
+  "scripts": {
+    "bridge": "node src/bridge.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
