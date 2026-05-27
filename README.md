@@ -58,6 +58,84 @@ Image analysis uses **Claude's own vision** through your Claude subscription. No
 
 ---
 
+## Quick install (non-technical users on Cowork)
+
+If you're using **Cowork** (Claude's desktop app for non-developers) and you don't want to touch any files yourself, just copy the block below and paste it into a fresh Cowork chat. Cowork will do everything — clone, install, patch the config, and render the QR. The only things *you* need to do are: approve folder access, approve computer-use access, restart Cowork when told, and scan the QR on your phone.
+
+````
+Hi Claude. Please install the WhatsApp MCP from GitHub for me. I'm NOT technical. Do EVERYTHING yourself with your own tools — File Explorer, .bat double-clicking, folder navigation are all your job, not mine.
+
+The only things I should have to do are:
+1. Approve your folder-access request when you ask
+2. Approve your computer-use access request
+3. Fully quit and reopen Cowork when you tell me to
+4. Scan a QR code with my phone at the very end
+
+That's it.
+
+Repo: https://github.com/stevenpkm/whatsapp-local-mcp
+
+### Step 1: Check Node.js
+Use computer-use to open PowerShell on my machine (Win+R → type "powershell" → Enter). Run `node --version` and screenshot the output.
+- If version is 18+, continue.
+- If "command not found" or version <18, STOP and tell me to install Node.js 18+ from https://nodejs.org/ first.
+
+### Step 2: Get a folder on my real disk
+Call mcp__cowork__request_cowork_directory and ask me to pick a folder where the project will live (Desktop or Documents). Without this, anything you create disappears into your sandbox. Wait for my approval.
+
+### Step 3: Clone the repo
+In bash, cd into the mounted folder and run:
+  git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
+
+### Step 4: Install dependencies — WARN ME FIRST
+Before running, say: "Installing dependencies — this downloads ~80MB and takes 2 to 5 minutes with no progress bar. It is NOT stuck. Don't close anything."
+
+Then cd into whatsapp-local-mcp and run `npm install`. Wait for it to finish. Do not interrupt. Do not say it might be stuck.
+
+### Step 5: Patch the Claude Desktop config
+File path: C:\Users\<me>\AppData\Roaming\Claude\claude_desktop_config.json
+
+Try in this order:
+1. Read tool on that path — if it works, read and merge.
+2. If Read fails, open it via PowerShell + computer-use:
+     notepad "$env:APPDATA\Claude\claude_desktop_config.json"
+3. If the file doesn't exist, create it.
+
+Merge in (do NOT overwrite existing mcpServers):
+{
+  "mcpServers": {
+    "whatsapp": {
+      "command": "node",
+      "args": ["FULL_ABSOLUTE_PATH/whatsapp-local-mcp/src/index.js"]
+    }
+  }
+}
+
+If your Write can't reach %APPDATA%, write a PowerShell merge script to my desktop and run it via computer-use. End state must be: config contains the whatsapp entry alongside any existing entries.
+
+### Step 6: Tell me to restart
+"Please fully quit Cowork — right-click the tray icon, choose Quit (not just close the window). Then reopen and tell me you're back."
+
+### Step 7: Render the QR
+When I'm back, call mcp__whatsapp__relink_whatsapp. Render the qr string as a scannable QR image inside a widget (use qrcode-generator from a CDN). Tell me: "On your phone, WhatsApp → Settings → Linked Devices → Link a Device → scan."
+
+### Step 8: Verify
+After scan, call mcp__whatsapp__wait_for_link, then mcp__whatsapp__get_status. Confirm connected: true. Say: "Done. Try asking: summarize my WhatsApp from the last 12 hours."
+
+### Rules
+- Do NOT tell me to double-click files. Launch them yourself via computer-use.
+- Do NOT tell me to open Explorer or navigate folders.
+- Do NOT stop mid-flow waiting for "click to continue."
+- Do NOT say "this might be stuck" during npm install. Set expectations in Step 4 and let it run.
+- If something fails, state clearly what failed and what you'll try next.
+
+Begin with Step 1 now.
+````
+
+That's it. If you're not on Cowork, or you'd rather install it yourself, follow the manual steps below.
+
+---
+
 ## Install
 
 ### Windows
