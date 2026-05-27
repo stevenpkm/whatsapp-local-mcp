@@ -58,136 +58,93 @@ Image analysis uses **Claude's own vision** through your Claude subscription. No
 
 ---
 
-## Quick install (non-technical users on Cowork)
+## Install
 
-If you're using **Cowork** (Claude's desktop app for non-developers) and you don't want to touch any files yourself, just copy the block below and paste it into a fresh Cowork chat. Cowork will do everything — clone, install, patch the config, and render the QR. The only things *you* need to do are: approve folder access, approve computer-use access, restart Cowork when told, and scan the QR on your phone.
+Pick the option that matches you. **Most people want Option A.**
 
-````
-Hi Claude. Please install the WhatsApp MCP from GitHub for me. I'm NOT technical. Do EVERYTHING yourself with your own tools — File Explorer, .bat double-clicking, folder navigation are all your job, not mine.
+### Option A — Cowork user (easiest, no terminal)
 
-The only things I should have to do are:
-1. Approve your folder-access request when you ask
-2. Approve your computer-use access request
-3. Fully quit and reopen Cowork when you tell me to
-4. Scan a QR code with my phone at the very end
+If you use **Cowork** (Claude's desktop app), it already has access to one folder on your computer — the folder you picked when you first set up Cowork. We'll use that.
 
-That's it.
+1. Make sure you have **Node.js 18+** installed. If not, get it from [nodejs.org](https://nodejs.org/) (Next-Next-Install, takes a minute).
+2. Open Cowork and **paste this into the chat**:
 
-Repo: https://github.com/stevenpkm/whatsapp-local-mcp
+   ````
+   Hi Claude. Please install the WhatsApp MCP for me.
 
-### Step 1: Check Node.js
-Use computer-use to open PowerShell on my machine (Win+R → type "powershell" → Enter). Run `node --version` and screenshot the output.
-- If version is 18+, continue.
-- If "command not found" or version <18, STOP and tell me to install Node.js 18+ from https://nodejs.org/ first.
+   Important: Use the folder you already have access to in this chat. Do NOT ask me to select a new folder — I already granted you a folder when I set up Cowork.
 
-### Step 2: Get a folder on my real disk
-Call mcp__cowork__request_cowork_directory and ask me to pick a folder where the project will live (Desktop or Documents). Without this, anything you create disappears into your sandbox. Wait for my approval.
+   Repo: https://github.com/stevenpkm/whatsapp-local-mcp
 
-### Step 3: Clone the repo
-In bash, cd into the mounted folder and run:
-  git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
+   Please do this:
+   1. In bash, figure out the path of the folder you already have access to, then cd into it.
+   2. Run: git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
+   3. Tell me clearly: "Go to <full path>/whatsapp-local-mcp/windows/ and double-click install.bat. A black window will open and run for 2–3 minutes — it downloads dependencies and patches the Cowork config. When it says SUCCESS, close it."
+   4. Wait for me to confirm it's done. Then tell me to fully quit Cowork (right-click the tray icon, choose Quit — NOT just close the window) and reopen it.
+   5. After I reopen and say "scan", call mcp__whatsapp__relink_whatsapp and show me the QR so I can scan with my phone (WhatsApp → Settings → Linked Devices → Link a Device).
 
-### Step 4: Install dependencies — WARN ME FIRST
-Before running, say: "Installing dependencies — this downloads ~80MB and takes 2 to 5 minutes with no progress bar. It is NOT stuck. Don't close anything."
+   Rules:
+   - Do NOT call request_cowork_directory.
+   - Do NOT ask me to select a new folder.
+   - Do NOT use computer-use for anything.
+   - Do NOT open File Explorer, terminals, or any other windows on my screen.
+   - Use only bash and your file tools.
+   - When you need me to do something, tell me the exact path clearly.
 
-Then cd into whatsapp-local-mcp and run `npm install`. Wait for it to finish. Do not interrupt. Do not say it might be stuck.
+   Begin now.
+   ````
 
-### Step 5: Patch the Claude Desktop config
-File path: C:\Users\<me>\AppData\Roaming\Claude\claude_desktop_config.json
+3. Cowork will clone the repo into your folder and tell you to open `…\whatsapp-local-mcp\windows\` and **double-click `install.bat`**. A black window will open and run for 2–3 minutes. **Don't close it early** — `npm install` looks idle for long stretches but is working. When the window shows "SUCCESS", close it.
 
-Try in this order:
-1. Read tool on that path — if it works, read and merge.
-2. If Read fails, open it via PowerShell + computer-use:
-     notepad "$env:APPDATA\Claude\claude_desktop_config.json"
-3. If the file doesn't exist, create it.
+   > If Windows shows "Windows protected your PC" when you double-click, click **More info → Run anyway**. That's normal for any new file.
 
-Merge in (do NOT overwrite existing mcpServers):
-{
-  "mcpServers": {
-    "whatsapp": {
-      "command": "node",
-      "args": ["FULL_ABSOLUTE_PATH/whatsapp-local-mcp/src/index.js"]
-    }
-  }
-}
+4. Right-click the Cowork tray icon (next to the clock) and choose **Quit** (just closing the window isn't enough). Reopen Cowork.
+5. In chat, type **`scan my WhatsApp`**. A QR code appears. On your phone: WhatsApp → Settings → Linked Devices → Link a Device → scan.
 
-If your Write can't reach %APPDATA%, write a PowerShell merge script to my desktop and run it via computer-use. End state must be: config contains the whatsapp entry alongside any existing entries.
-
-### Step 6: Tell me to restart
-"Please fully quit Cowork — right-click the tray icon, choose Quit (not just close the window). Then reopen and tell me you're back."
-
-### Step 7: Render the QR
-When I'm back, call mcp__whatsapp__relink_whatsapp. Render the qr string as a scannable QR image inside a widget (use qrcode-generator from a CDN). Tell me: "On your phone, WhatsApp → Settings → Linked Devices → Link a Device → scan."
-
-### Step 8: Verify
-After scan, call mcp__whatsapp__wait_for_link, then mcp__whatsapp__get_status. Confirm connected: true. Say: "Done. Try asking: summarize my WhatsApp from the last 12 hours."
-
-### Rules
-- Do NOT tell me to double-click files. Launch them yourself via computer-use.
-- Do NOT tell me to open Explorer or navigate folders.
-- Do NOT stop mid-flow waiting for "click to continue."
-- Do NOT say "this might be stuck" during npm install. Set expectations in Step 4 and let it run.
-- If something fails, state clearly what failed and what you'll try next.
-
-Begin with Step 1 now.
-````
-
-That's it. If you're not on Cowork, or you'd rather install it yourself, follow the manual steps below.
+That's it. Try: *"summarize my WhatsApp from the last 12 hours"*.
 
 ---
 
-## Install
+### Option B — Claude Desktop user (no Cowork)
 
-### Windows
-
-1. **Clone the repo** somewhere stable (not Downloads):
-
+1. Install **Node.js 18+** from [nodejs.org](https://nodejs.org/).
+2. Open a terminal in a stable folder (e.g. `Documents`):
    ```
-   git clone https://github.com/YOUR-USERNAME/whatsapp-mcp.git
-   cd whatsapp-mcp
+   git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
+   cd whatsapp-local-mcp
    ```
+3. Double-click `windows\install.bat`. It runs `npm install` and writes a `whatsapp` entry into `%APPDATA%\Claude\claude_desktop_config.json` so Claude knows to launch the MCP server.
+4. *(Optional)* For voice-note transcription, create `api-key.txt` in the repo root and paste your OpenAI key (one line, no quotes).
+5. Quit and reopen Claude Desktop.
+6. In chat, type **`scan my WhatsApp`** and scan the QR on your phone.
 
-2. **Double-click `windows\install.bat`**
+---
 
-   It will:
-   - Run `npm install`
-   - Write a `whatsapp` entry into your Claude Desktop config at `%APPDATA%\Claude\claude_desktop_config.json` so Claude knows to launch the MCP server.
+### Option C — macOS / Linux
 
-3. *(Optional)* If you want voice-note transcription, create a file called `api-key.txt` in the repo root and paste your OpenAI key inside (one line, no quotes).
-
-4. **Open Claude Desktop / Cowork.**
-
-5. In chat, tell Claude: **"scan my WhatsApp"**
-
-   Claude will call the `relink_whatsapp` tool, which renders a QR code in chat. Open WhatsApp on your phone, go to **Settings -> Linked Devices -> Link a Device**, scan it.
-
-6. Done. The bridge stays alive in the background from now on.
-
-### macOS / Linux
-
-The `windows/*.bat` helpers are Windows-only, but the Node code is cross-platform. Install manually:
+The Windows `.bat` helpers don't run here, but the Node code is cross-platform.
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/whatsapp-mcp.git
-cd whatsapp-mcp
+git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
+cd whatsapp-local-mcp
 npm install
-node scripts/install-mcp-config.mjs   # patches Claude Desktop config
+node scripts/install-mcp-config.mjs   # patches the config
 ```
 
-On macOS, the Claude Desktop config path is `~/Library/Application Support/Claude/claude_desktop_config.json`. The install script targets `APPDATA` (Windows) by default. On macOS, edit that config manually if needed:
+On macOS the Claude config lives at `~/Library/Application Support/Claude/claude_desktop_config.json`. The install script targets Windows `APPDATA` by default — on macOS, edit the config manually:
 
 ```json
 {
   "mcpServers": {
     "whatsapp": {
       "command": "node",
-      "args": ["/absolute/path/to/whatsapp-mcp/src/index.js"]
+      "args": ["/absolute/path/to/whatsapp-local-mcp/src/index.js"]
     }
   }
 }
 ```
 
-For the bridge to survive across sessions on macOS/Linux, run `node src/bridge.js` in a launchctl/systemd unit (the Windows .bat handles spawning automatically).
+For the bridge to survive across sessions on macOS/Linux, run `node src/bridge.js` in a launchctl/systemd unit (the Windows `.bat` handles spawning automatically).
 
 ---
 
@@ -343,3 +300,4 @@ You're done - from here, normal queries like "summarize my last 12 hours" will w
 MIT - see `LICENSE`.
 
 Built on [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) and the [Model Context Protocol SDK](https://github.com/modelcontextprotocol).
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
