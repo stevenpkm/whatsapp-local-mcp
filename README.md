@@ -81,7 +81,10 @@ If you use **Cowork** (Claude's desktop app), it already has access to one folde
    2. Run: git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
    3. Tell me clearly: "Go to <full path>/whatsapp-local-mcp/windows/ and double-click install.bat. A black window will open and run for 2–3 minutes — it downloads dependencies and patches the Cowork config. When it says SUCCESS, close it."
    4. Wait for me to confirm it's done. Then tell me to fully quit Cowork (right-click the tray icon, choose Quit — NOT just close the window) and reopen it.
-   5. After I reopen and say "scan", call mcp__whatsapp__relink_whatsapp and show me the QR so I can scan with my phone (WhatsApp → Settings → Linked Devices → Link a Device).
+   5. After I reopen and say "scan":
+      a. Call mcp__whatsapp__relink_whatsapp (the bridge will generate a fresh QR).
+      b. Tell me EXACTLY: "On your Desktop, double-click 'Open WhatsApp QR'. A big QR will open in your browser. Scan it from your phone: WhatsApp → Settings → Linked Devices → Link a Device. The page auto-refreshes if the QR expires, and shows '✓ Connected' once linked."
+      c. Do NOT try to render the QR inline in chat. Always send me to the Desktop shortcut.
 
    Rules:
    - Do NOT call request_cowork_directory.
@@ -94,14 +97,14 @@ If you use **Cowork** (Claude's desktop app), it already has access to one folde
    Begin now.
    ````
 
-3. Cowork will clone the repo into your folder and tell you to open `…\whatsapp-local-mcp\windows\` and **double-click `install.bat`**. A black window will open and run for 2–3 minutes. **Don't close it early** — `npm install` looks idle for long stretches but is working. When the window shows "SUCCESS", close it.
+That's it. Just follow what Cowork's Claude tells you — it will walk you through each step. The full flow is:
 
-   > If Windows shows "Windows protected your PC" when you double-click, click **More info → Run anyway**. That's normal for any new file.
+- Cowork's Claude clones the repo and tells you to double-click `install.bat`. Black window runs for 2–3 minutes, says SUCCESS. The installer also drops a shortcut called **"Open WhatsApp QR"** on your Desktop.
+- *(If Windows shows "Windows protected your PC", click **More info → Run anyway**.)*
+- Quit Cowork from the tray (right-click → Quit, not just close the window) and reopen it.
+- Type `scan my WhatsApp` in chat. Cowork tells you to double-click **"Open WhatsApp QR"** on your Desktop. Do that — a big QR opens in your browser. Scan from your phone (WhatsApp → Settings → Linked Devices → Link a Device). The page shows **✓ Connected** when done.
 
-4. Right-click the Cowork tray icon (next to the clock) and choose **Quit** (just closing the window isn't enough). Reopen Cowork.
-5. In chat, type **`scan my WhatsApp`**. A QR code appears. On your phone: WhatsApp → Settings → Linked Devices → Link a Device → scan.
-
-That's it. Try: *"summarize my WhatsApp from the last 12 hours"*.
+After that, try: *"summarize my WhatsApp from the last 12 hours"*.
 
 ---
 

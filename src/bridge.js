@@ -316,6 +316,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "GET /healthz") return sendJson(res, 200, { ok: true, pid: process.pid });
 
+    // Live QR page — open in browser, auto-refreshes, shows "Connected" when linked.
+    if (route === "GET /qr.json") {
+      if (!controller) return sendJson(res, 200, { qr: null, connected: false, error: "controller not initialized" });
+      return sendJson(res, 200, controller.getCurrentQR());
+    }
+    if (route === "GET /qr") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      return res.end(QR_PAGE_HTML);
+    }
+
     res.writeHead(404, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: "not found" }));
   } catch (e) {
@@ -336,4 +346,68 @@ server.on("error", (e) => {
 });
 server.listen(PORT, "127.0.0.1", () => {
   console.error(`[bridge] HTTP API listening on http://127.0.0.1:${PORT}`);
+  console.error(`[bridge] Live QR page: http://127.0.0.1:${PORT}/qr`);
 });
+
+// ---------- live QR page (served at /qr) ----------
+const QR_PAGE_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>WhatsApp QR</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{color-scheme:light}
+  body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fafafa;margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a1a1a}
+  .card{background:#fff;padding:36px 40px;border-radius:14px;box-shadow:0 2px 24px rgba(0,0,0,.06);text-align:center;max-width:440px}
+  h1{font-size:22px;margin:0 0 4px;font-weight:600}
+  .sub{color:#888;font-size:13px;margin:0 0 24px}
+  #qr{width:300px;height:300px;margin:0 auto;display:flex;align-items:center;justify-content:center}
+  #qr svg{width:100%;height:100%}
+  .hint{font-size:13px;color:#555;margin-top:24px;line-height:1.6}
+  .age{font-size:11px;color:#aaa;margin-top:10px;min-height:14px}
+  .connected{color:#15803d;font-size:24px;font-weight:600;padding:60px 0}
+  .pending{color:#888;font-size:14px;padding:80px 20px;line-height:1.5}
+</style></head>
+<body><div class="card">
+  <h1>WhatsApp QR</h1>
+  <div class="sub" id="sub">Scan this with your phone</div>
+  <div id="qr"><div class="pending">Loading…</div></div>
+  <div class="hint" id="hint">On your phone: WhatsApp → Settings → Linked Devices → Link a Device → scan</div>
+  <div class="age" id="age"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+  let currentQR = null;
+  let done = false;
+  async function poll() {
+    if (done) return;
+    try {
+      const r = await fetch('/qr.json', { cache: 'no-store' });
+      const j = await r.json();
+      if (j.connected) {
+        done = true;
+        document.getElementById('sub').textContent = 'Linked successfully';
+        document.getElementById('qr').innerHTML = '<div class="connected">\u2713 Connected!</div>';
+        document.getElementById('hint').textContent = 'You can close this tab and go back to Cowork.';
+        document.getElementById('age').textContent = '';
+        return;
+      }
+      if (j.qr) {
+        if (j.qr !== currentQR) {
+          currentQR = j.qr;
+          const q = qrcode(0, 'M');
+          q.addData(j.qr);
+          q.make();
+          document.getElementById('qr').innerHTML = q.createSvgTag(8, 0);
+        }
+        document.getElementById('age').textContent = 'QR refreshed ' + (j.qrAgeSec || 0) + 's ago — auto-refreshes when it expires';
+      } else {
+        document.getElementById('qr').innerHTML = '<div class="pending">No QR yet. In Cowork, type:<br><br><b>scan my WhatsApp</b><br><br>then come back to this tab.</div>';
+        document.getElementById('age').textContent = '';
+      }
+    } catch (e) { /* ignore transient errors */ }
+    setTimeout(poll, 2500);
+  }
+  poll();
+</script>
+</body></html>`;
+

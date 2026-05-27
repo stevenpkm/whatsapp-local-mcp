@@ -40,7 +40,7 @@ if errorlevel 1 (
 
 REM 1) npm install
 if not exist "node_modules" (
-    echo [1/2] Installing dependencies. This takes 2-3 minutes - please wait.
+    echo [1/3] Installing dependencies. This takes 2-3 minutes - please wait.
     echo       npm shows no progress bar, but it IS working. Don't close this.
     echo.
     call npm install --no-audit --no-fund
@@ -52,9 +52,50 @@ if not exist "node_modules" (
         exit /b 1
     )
 ) else (
-    echo [1/2] Dependencies already installed - skipping.
+    echo [1/3] Dependencies already installed - skipping.
 )
 echo.
 
 REM 2) Wire into Claude Desktop / Cowork
-echo [2
+echo [2/3] Patching Cowork / Claude Desktop config so it loads the MCP...
+call node scripts\install-mcp-config.mjs
+if errorlevel 1 (
+    echo.
+    echo ERROR: failed to write the MCP config.
+    pause
+    popd
+    exit /b 1
+)
+echo.
+
+REM 3) Create Desktop shortcut to the live QR page
+echo [3/3] Creating "Open WhatsApp QR" shortcut on your Desktop...
+> "%USERPROFILE%\Desktop\Open WhatsApp QR.url" (
+  echo [InternetShortcut]
+  echo URL=http://127.0.0.1:8765/qr
+  echo IconIndex=0
+)
+echo.
+
+echo ===========================================
+echo   SUCCESS - WhatsApp MCP is installed
+echo ===========================================
+echo.
+echo Next steps:
+echo.
+echo   1. Close this window.
+echo   2. Right-click the Cowork icon in your taskbar (near the clock)
+echo      and choose "Quit" (NOT just close the window).
+echo   3. Open Cowork again from your Start Menu.
+echo   4. In the chat, type:  scan my WhatsApp
+echo   5. On your Desktop, double-click "Open WhatsApp QR".
+echo      A big QR will open in your browser. Scan from your phone:
+echo      WhatsApp - Settings - Linked Devices - Link a Device
+echo      (The QR auto-refreshes if it expires; the page shows
+echo       "Connected" when scanning succeeds.)
+echo.
+echo (Optional) For voice-note transcription, drop your OpenAI API
+echo key into:  %MCP_DIR%api-key.txt
+echo.
+pause
+popd

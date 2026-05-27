@@ -336,8 +336,16 @@ export async function createWhatsAppController({
     };
   }
 
+  function getCurrentQR() {
+    return {
+      qr: latestQR,
+      qrAgeSec: latestQR ? Math.round((Date.now() - latestQRAt) / 1000) : null,
+      connected: isConnected,
+    };
+  }
+
   connect();
   startWatchdog();
 
-  return { relink, waitForLink, forceResync, getStatus };
+  return { relink, waitForLink, forceResync, getStatus, getCurrentQR };
 }
