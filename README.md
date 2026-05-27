@@ -216,12 +216,34 @@ whatsapp-mcp/
 
 ## MCP tools exposed
 
-`get_status`, `list_chats`, `get_recent_messages`, `search_messages`,
-`relink_whatsapp`, `wait_for_link`, `force_resync`,
-`enrich_window` (voice-only, calls Whisper),
-`get_image` (returns image bytes for Claude vision),
-`set_description` (cache an image description),
-`get_brief`, `set_brief`.
+**Read tools (cache-only, free):**
+- `get_status` — connection + cache health
+- `list_chats` — all chats with names (not IDs)
+- `get_recent_messages` — last N hours, filterable by chat / group
+- `search_messages` — case-insensitive substring search
+- `get_brief` / `set_brief` — read/write the daily brief artifact JSON
+
+**Media tools (lazy, on-demand):**
+- `get_image` — return image bytes inline so Claude can SEE the picture (vision)
+- `set_description` — cache Claude's description of an image
+- `save_image` — write a single image to disk; returns absolute path
+- `save_voice` — write a single voice note (.ogg) to disk; optionally also transcribe via Whisper
+- `save_media` — generic save (image/audio/video/document) when the kind isn't known in advance
+- `list_media_window` — read-only preview of what `save_media_window` would save (with `likelyExpired` flag for media older than ~13 days)
+- `save_media_window` — bulk save from the last N hours with bounded concurrency and per-item results
+- `where_do_media_files_go` — return the default folder path and how many files are already in it
+- `enrich_window` — voice-only: download + transcribe voice notes via Whisper (no images — those go through `get_image`)
+
+**Link management:**
+- `relink_whatsapp` — start a fresh QR pair
+- `wait_for_link` — block until the link succeeds
+- `force_resync` — soft reconnect
+
+**Error contract:** every tool returns a structured envelope. Success: `{ ok: true, ...data }`. Failure: `{ ok: false, code, error, ...context }` where `code` is one of a closed set (`media_expired`, `no_keys`, `download_failed`, `not_found`, `not_image`, `disk_error`, `permission_denied`, `disk_full`, `bridge_unreachable`, `bridge_restarting`, `timeout`, `transcribe_failed`, `no_api_key`, `invalid_argument`, ...). The MCP response sets `isError: true` on failure so spec-compliant clients can branch without parsing strings. Bulk operations (`save_media_window`) return `ok: true` even when some items fail; failures appear inside `items[].ok = false` and are rolled up in `errors: [{code, count}]`.
+
+**Saved-file paths.** Save tools also emit an MCP `resource_link` content block with `uri: file:///…` and the file's mime type, so capable clients can offer "open this file" affordances.
+
+**Default folder.** Save tools write to `<project>/data/media/<YYYY-MM-DD>/` by default. Filename format: `<ISO-timestamp>__<chat-slug>__<sender-slug>__<msgId-tail>.<ext>`. Override the folder per call with the `folder` parameter (absolute path).
 
 All read-only over WhatsApp. **No `send_message` tool exists by design** — this MCP cannot send anything on your behalf, which significantly cuts down the prompt-injection blast radius.
 

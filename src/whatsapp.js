@@ -94,7 +94,10 @@ export async function createWhatsAppController({
     if (transcribeInFlight >= TRANSCRIBE_PARALLEL) return;
     if (!transcribeQueue.length) return;
     const apiKey = loadApiKey(projectRoot);
-    if (!apiKey) { transcribeQueue.length = 0; return; }
+    // Don't drain the queue when no API key — items may become processable
+    // later (e.g. user creates api-key.txt). Just sit on them and re-check
+    // when the next item is pushed. This used to silently throw away work.
+    if (!apiKey) return;
     transcribeInFlight++;
     const item = transcribeQueue.shift();
     try {

@@ -25,6 +25,8 @@ import { downloadContentFromMessage } from "@whiskeysockets/baileys";
 import { Store } from "./store.js";
 import { createWhatsAppController } from "./whatsapp.js";
 import { transcribeAudio, loadApiKey } from "./transcribe.js";
+import { classifyError, ok as okEnvelope, fail } from "./errors.js";
+import { defaultFilename, resolveFolder, validateFilename, ensureFolder, extFor } from "./media-paths.js";
 // Note: we used to import describeImage from ./vision.js to enrich images
 // via OpenAI gpt-4o-mini Vision. That's now disabled — image analysis is
 // done by Claude (via the get_image MCP tool, using the Cowork subscription
@@ -186,6 +188,126 @@ async function runWithConcurrency(items, limit, worker) {
   await Promise.all(workers);
   return results;
 }
+
+// Save one media item to disk. Returns a structured envelope. Used by
+// /save-image, /save-voice, /save-media, and the bulk endpoint.
+async function saveMediaItem({ msg, expectedKind, folder, filename, opts = {} }) {
+  if (!msg) return fail("not_found", "message not in cache");
+  if (!msg.media) return fail("not_media", "message has no media payload", { type: msg.type });
+  if (expectedKind && msg.media.kind !== expectedKind) {
+    return fail(`not_${expectedKind}`, `kind=${msg.media.kind}`, { chatId: msg.chatId, msgId: msg.id });
+  }
+  if (!msg.media.mediaKey) return fail("no_keys", "this message was cached before media-key tracking was added", { chatId: msg.chatId, msgId: msg.id });
+
+  // Resolve folder + filename. Folder defaults to data/media/<YYYY-MM-DD>/
+  // based on the MESSAGE timestamp so files group by chat date, not save date.
+  const epochMs = (Number(msg.timestamp) || Date.now());
+  const folderRes = resolveFolder({ projectRoot, folder, epochMs });
+  if (!folderRes.ok) return folderRes;
+  const fnRes = validateFilename(filename);
+  if (!fnRes.ok) return fnRes;
+
+  // Skip-if-exists: if a file with the same intended name already exists,
+  // and we're not overwriting, return early with the existing path.
+  const chatName = store.nameFor(msg.chatId);
+  const senderName = msg.fromMe ? "you" : store.nameFor(msg.sender);
+  const finalFn = fnRes.filename || defaultFilename({
+    epochMs, chatName, senderName, msgId: msg.id,
+    mimeType: msg.media.mimetype, kind: msg.media.kind,
+  });
+  const targetPath = path.join(folderRes.folder, finalFn);
+
+  if (opts.skipIfExists !== false && fs.existsSync(targetPath)) {
+    let stat = null;
+    try { stat = fs.statSync(targetPath); } catch {}
+    return okEnvelope({
+      path: targetPath,
+      filename: finalFn,
+      folder: folderRes.folder,
+      kind: msg.media.kind,
+      mimeType: msg.media.mimetype || null,
+      sizeBytes: stat?.size ?? null,
+      width: msg.media.width || null,
+      height: msg.media.height || null,
+      chatId: msg.chatId,
+      msgId: msg.id,
+      chat: chatName,
+      sender: senderName,
+      timestampISO: new Date(epochMs).toISOString(),
+      skipped: true,
+      reason: "file_already_exists",
+    });
+  }
+
+  // Make sure the folder exists.
+  const mkdir = ensureFolder(folderRes.folder);
+  if (!mkdir.ok) return mkdir;
+
+  // Per-item timeout (defaults: image 30s, voice 60s, video 120s).
+  const defaultTimeout = msg.media.kind === "video" ? 120_000 : (msg.media.kind === "audio" ? 60_000 : 30_000);
+  const timeoutMs = Number(opts.timeoutMs) || defaultTimeout;
+
+  // Download via Baileys. Wrap in a timeout race so a stalled CDN doesn't
+  // hold the slot forever.
+  let buf;
+  try {
+    const downloadKind = msg.media.kind === "voice" ? "audio" : msg.media.kind;
+    const stream = await downloadContentFromMessage(buildDownloadable(msg.media), downloadKind);
+    buf = await Promise.race([
+      streamToBuffer(stream),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("download timed out")), timeoutMs)),
+    ]);
+  } catch (e) {
+    const { code, error } = classifyError(e, "download_failed");
+    return fail(code, error, { chatId: msg.chatId, msgId: msg.id });
+  }
+  if (!buf || buf.length === 0) {
+    return fail("download_failed", "empty buffer from CDN (likely expired)", { chatId: msg.chatId, msgId: msg.id });
+  }
+
+  // Write to disk.
+  try {
+    fs.writeFileSync(targetPath, buf);
+    // Set mtime to the message's WhatsApp timestamp so Explorer sorts correctly.
+    try { fs.utimesSync(targetPath, new Date(epochMs), new Date(epochMs)); } catch {}
+  } catch (e) {
+    const { code, error } = classifyError(e, "disk_error");
+    return fail(code, error, { chatId: msg.chatId, msgId: msg.id, path: targetPath });
+  }
+
+  return okEnvelope({
+    path: targetPath,
+    filename: finalFn,
+    folder: folderRes.folder,
+    kind: msg.media.kind,
+    mimeType: msg.media.mimetype || null,
+    sizeBytes: buf.length,
+    width: msg.media.width || null,
+    height: msg.media.height || null,
+    durationSec: msg.media.seconds || null,
+    chatId: msg.chatId,
+    msgId: msg.id,
+    chat: chatName,
+    sender: senderName,
+    timestampISO: new Date(epochMs).toISOString(),
+  });
+}
+
+// Heuristic: is a message's encrypted blob likely garbage-collected from the
+// WhatsApp CDN? Anything older than ~13 days is at risk.
+function defaultFilenameDir() {
+  const d = new Date();
+  const ymd = d.toISOString().slice(0, 10);
+  return path.join(projectRoot, "data", "media", ymd);
+}
+
+function looksExpired(msg) {
+  const ts = Number(msg?.media?.mediaKeyTimestamp) || (Number(msg?.timestamp) ? Math.floor(msg.timestamp / 1000) : 0);
+  if (!ts) return false;
+  const ageDays = (Date.now() / 1000 - ts) / 86400;
+  return ageDays > 13;
+}
+
 async function enrichWindow({ hours = 12, kinds = ["audio"], concurrency = 3, maxItems = 100 } = {}) {
   // Default = audio only. Images are routed through Claude via get_image
   // instead of OpenAI Vision, so they're skipped here even if requested.
@@ -234,10 +356,15 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "POST /set-brief") {
       const body = await readJson(req);
-      if (!body?.brief) return sendJson(res, 400, { ok: false, error: "missing brief" });
-      fs.mkdirSync(dataDir, { recursive: true });
-      fs.writeFileSync(briefCacheFile, JSON.stringify(body.brief, null, 2));
-      return sendJson(res, 200, { ok: true });
+      if (!body?.brief) return sendJson(res, 400, fail("invalid_argument", "missing brief"));
+      try {
+        fs.mkdirSync(dataDir, { recursive: true });
+        fs.writeFileSync(briefCacheFile, JSON.stringify(body.brief, null, 2));
+        return sendJson(res, 200, okEnvelope());
+      } catch (e) {
+        const { code, error } = classifyError(e, "disk_error");
+        return sendJson(res, 500, fail(code, error));
+      }
     }
     if (route === "POST /list-chats") {
       const body = await readJson(req);
@@ -253,23 +380,23 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "POST /search-messages") {
       const body = await readJson(req);
-      if (!body?.query) return sendJson(res, 400, { ok: false, error: "missing query" });
+      if (!body?.query) return sendJson(res, 400, fail("invalid_argument", "missing query"));
       return sendJson(res, 200, { status: statusBlock(), query: body.query, matches: store.searchMessages(body) });
     }
     if (route === "POST /relink") {
-      if (!controller) return sendJson(res, 500, { ok: false, error: "controller not initialized" });
+      if (!controller) return sendJson(res, 500, fail("bridge_unhealthy", "controller not initialized"));
       const body = await readJson(req);
       const result = await controller.relink({ waitMs: body?.waitMs || 25000 });
       return sendJson(res, 200, { ...result, status: statusBlock() });
     }
     if (route === "POST /wait-for-link") {
-      if (!controller) return sendJson(res, 500, { ok: false, connected: false, error: "controller not initialized" });
+      if (!controller) return sendJson(res, 500, fail("bridge_unhealthy", "controller not initialized", { connected: false }));
       const body = await readJson(req);
       const result = await controller.waitForLink({ waitMs: body?.waitMs || 60000 });
       return sendJson(res, 200, { ...result, status: statusBlock() });
     }
     if (route === "POST /force-resync") {
-      if (!controller) return sendJson(res, 500, { ok: false, error: "controller not initialized" });
+      if (!controller) return sendJson(res, 500, fail("bridge_unhealthy", "controller not initialized"));
       const result = await controller.forceResync();
       return sendJson(res, 200, { ...result, status: statusBlock() });
     }
@@ -281,38 +408,265 @@ const server = http.createServer(async (req, res) => {
     if (route === "POST /get-image") {
       const body = await readJson(req);
       if (!body?.chatId || !body?.msgId) {
-        return sendJson(res, 400, { ok: false, error: "missing chatId or msgId" });
+        return sendJson(res, 400, fail("invalid_argument", "missing chatId or msgId"));
       }
       const msg = store.messages.find((m) => m.chatId === body.chatId && m.id === body.msgId);
-      if (!msg) return sendJson(res, 404, { ok: false, error: "message not in cache" });
-      if (!msg.media || msg.media.kind !== "image") {
-        return sendJson(res, 400, { ok: false, error: `message is not an image (kind=${msg.media?.kind || "none"})` });
-      }
-      if (!msg.media.mediaKey) {
-        return sendJson(res, 400, { ok: false, error: "no media keys stored for this message — it was cached before media-key tracking was added" });
-      }
+      if (!msg) return sendJson(res, 404, fail("not_found", "message not in cache", { chatId: body.chatId, msgId: body.msgId }));
+      if (!msg.media) return sendJson(res, 400, fail("not_media", "message has no media payload", { type: msg.type }));
+      if (msg.media.kind !== "image") return sendJson(res, 400, fail("not_image", `kind=${msg.media.kind}`));
+      if (!msg.media.mediaKey) return sendJson(res, 400, fail("no_keys", "this message was cached before media-key tracking was added"));
       try {
         const stream = await downloadContentFromMessage(buildDownloadable(msg.media), "image");
         const buf = await streamToBuffer(stream);
-        return sendJson(res, 200, {
-          ok: true,
+        return sendJson(res, 200, okEnvelope({
           data: buf.toString("base64"),
           mimeType: msg.media.mimetype || "image/jpeg",
           width: msg.media.width,
           height: msg.media.height,
           sizeBytes: buf.length,
-        });
+        }));
       } catch (e) {
-        return sendJson(res, 500, { ok: false, error: `download failed: ${e?.message || e} (media may have expired on WhatsApp's CDN — keys last ~14 days)` });
+        const { code, error } = classifyError(e, "download_failed");
+        return sendJson(res, code === "media_expired" ? 410 : 500, fail(code, error, { chatId: body.chatId, msgId: body.msgId }));
       }
     }
     if (route === "POST /set-description") {
       const body = await readJson(req);
       if (!body?.chatId || !body?.msgId || !body?.description) {
-        return sendJson(res, 400, { ok: false, error: "missing chatId, msgId, or description" });
+        return sendJson(res, 400, fail("invalid_argument", "missing chatId, msgId, or description"));
       }
-      const ok = store.setDescription(body.chatId, body.msgId, String(body.description));
-      return sendJson(res, ok ? 200 : 404, { ok });
+      const didSet = store.setDescription(body.chatId, body.msgId, String(body.description));
+      if (didSet) return sendJson(res, 200, okEnvelope());
+      return sendJson(res, 404, fail("not_found", "message not in cache", { chatId: body.chatId, msgId: body.msgId }));
+    }
+    if (route === "POST /save-image") {
+      const body = await readJson(req);
+      if (!body?.chatId || !body?.msgId) return sendJson(res, 400, fail("invalid_argument", "missing chatId or msgId"));
+      const msg = store.messages.find((m) => m.chatId === body.chatId && m.id === body.msgId);
+      const result = await saveMediaItem({ msg, expectedKind: "image", folder: body.folder, filename: body.filename, opts: { skipIfExists: body.skipIfExists !== false, timeoutMs: body.timeoutMs } });
+      return sendJson(res, result.ok ? 200 : (result.code === "media_expired" ? 410 : (result.code === "not_found" ? 404 : 500)), result);
+    }
+    if (route === "POST /save-voice") {
+      const body = await readJson(req);
+      if (!body?.chatId || !body?.msgId) return sendJson(res, 400, fail("invalid_argument", "missing chatId or msgId"));
+      const msg = store.messages.find((m) => m.chatId === body.chatId && m.id === body.msgId);
+      // Voice notes in our store are kind=audio. Accept both kind="voice" and "audio".
+      const expected = (msg?.media?.kind === "voice") ? "voice" : "audio";
+      const result = await saveMediaItem({ msg, expectedKind: expected, folder: body.folder, filename: body.filename, opts: { skipIfExists: body.skipIfExists !== false, timeoutMs: body.timeoutMs } });
+      // Optional: also transcribe on the fly if requested and no cached transcript.
+      if (result.ok && body.transcribe === true) {
+        const cachedTranscript = msg?.transcript || null;
+        if (cachedTranscript) {
+          result.transcript = cachedTranscript;
+          result.transcribed = false;
+        } else {
+          const apiKey = loadApiKey(projectRoot);
+          if (!apiKey) {
+            result.transcript = null;
+            result.transcribed = false;
+            result.transcribeError = fail("no_api_key", "no OpenAI API key in api-key.txt");
+          } else {
+            try {
+              const tBuf = fs.readFileSync(result.path);
+              const tResult = await transcribeAudio(tBuf, { apiKey, mimeType: msg.media.mimetype || "audio/ogg" });
+              if (tResult?.ok && tResult.text) {
+                store.setTranscript(msg.chatId, msg.id, tResult.text);
+                result.transcript = tResult.text;
+                result.transcribed = true;
+              } else {
+                result.transcribed = false;
+                result.transcribeError = fail("transcribe_failed", tResult?.error || "unknown");
+              }
+            } catch (e) {
+              result.transcribed = false;
+              result.transcribeError = fail("transcribe_failed", e?.message || String(e));
+            }
+          }
+        }
+      }
+      return sendJson(res, result.ok ? 200 : (result.code === "media_expired" ? 410 : (result.code === "not_found" ? 404 : 500)), result);
+    }
+    if (route === "POST /save-media") {
+      const body = await readJson(req);
+      if (!body?.chatId || !body?.msgId) return sendJson(res, 400, fail("invalid_argument", "missing chatId or msgId"));
+      const msg = store.messages.find((m) => m.chatId === body.chatId && m.id === body.msgId);
+      // Generic primitive: no expectedKind filter. Infers from msg.media.kind.
+      const result = await saveMediaItem({ msg, expectedKind: null, folder: body.folder, filename: body.filename, opts: { skipIfExists: body.skipIfExists !== false, timeoutMs: body.timeoutMs } });
+      return sendJson(res, result.ok ? 200 : (result.code === "media_expired" ? 410 : (result.code === "not_found" ? 404 : 500)), result);
+    }
+    if (route === "POST /list-media-window") {
+      const body = await readJson(req);
+      const hours = Math.max(1, Math.min(720, Number(body?.hours) || 24));
+      const kinds = Array.isArray(body?.kinds) && body.kinds.length ? body.kinds.map(String) : ["image", "voice"];
+      const wantsAudio = kinds.includes("voice") || kinds.includes("audio");
+      const kindsResolved = new Set(kinds.flatMap(k => k === "voice" ? ["voice","audio"] : [k]));
+      const limit = Math.max(1, Math.min(2000, Number(body?.limit) || 200));
+      const excludeGroups = !!body?.excludeGroups;
+      const chatId = body?.chatId || null;
+      const cutoff = Date.now() - hours * 3600 * 1000;
+
+      const items = [];
+      for (let i = store.messages.length - 1; i >= 0; i--) {
+        if (items.length >= limit) break;
+        const m = store.messages[i];
+        if (!m?.media) continue;
+        if (chatId && m.chatId !== chatId) continue;
+        if (excludeGroups && m.isGroup) continue;
+        if (!kindsResolved.has(m.media.kind)) continue;
+        if ((m.timestamp || 0) < cutoff) break;
+        items.push({
+          chatId: m.chatId,
+          msgId: m.id,
+          kind: m.media.kind,
+          mimeType: m.media.mimetype || null,
+          sender: m.fromMe ? "you" : store.nameFor(m.sender),
+          chat: store.nameFor(m.chatId),
+          isGroup: !!m.isGroup,
+          timestampISO: new Date(m.timestamp || 0).toISOString(),
+          sizeBytes: m.media.fileLength || null,
+          width: m.media.width || null,
+          height: m.media.height || null,
+          durationSec: m.media.seconds || null,
+          hasMediaKey: !!m.media.mediaKey,
+          likelyExpired: looksExpired(m),
+        });
+      }
+      // Roll up by kind for quick summarization
+      const byKind = {};
+      for (const it of items) byKind[it.kind] = (byKind[it.kind] || 0) + 1;
+      return sendJson(res, 200, okEnvelope({ hours, kinds, items, totalCount: items.length, byKind }));
+    }
+    if (route === "POST /save-media-window") {
+      const body = await readJson(req);
+      const hours = Math.max(1, Math.min(720, Number(body?.hours) || 24));
+      const kinds = Array.isArray(body?.kinds) && body.kinds.length ? body.kinds.map(String) : ["image"];
+      const kindsResolved = new Set(kinds.flatMap(k => k === "voice" ? ["voice","audio"] : [k]));
+      const maxItems = Math.max(1, Math.min(500, Number(body?.maxItems) || 100));
+      const concurrency = Math.max(1, Math.min(8, Number(body?.concurrency) || 3));
+      const excludeGroups = !!body?.excludeGroups;
+      const chatId = body?.chatId || null;
+      const folder = body?.folder || undefined;
+      const transcribe = body?.transcribe === true;
+      const skipIfExists = body?.skipIfExists !== false;
+      const startedAt = Date.now();
+      const cutoff = startedAt - hours * 3600 * 1000;
+
+      // Collect candidates (newest first), capped at maxItems.
+      const candidates = [];
+      for (let i = store.messages.length - 1; i >= 0; i--) {
+        if (candidates.length >= maxItems) break;
+        const m = store.messages[i];
+        if (!m?.media) continue;
+        if (chatId && m.chatId !== chatId) continue;
+        if (excludeGroups && m.isGroup) continue;
+        if (!kindsResolved.has(m.media.kind)) continue;
+        if ((m.timestamp || 0) < cutoff) break;
+        candidates.push(m);
+      }
+
+      // Pre-flight: bridge / WhatsApp must be connected.
+      const st = controller?.getStatus?.();
+      if (!st?.connected) {
+        return sendJson(res, 503, fail("not_connected", "WhatsApp socket not connected; cannot download media", { candidateCount: candidates.length }));
+      }
+
+      // Run downloads concurrently, but stop issuing new ones if we lose
+      // connection or hit ENOSPC.
+      let stoppedReason = null;
+      const items = await runWithConcurrency(candidates, concurrency, async (msg) => {
+        if (stoppedReason) {
+          return fail(stoppedReason, `aborted before processing`, { chatId: msg.chatId, msgId: msg.id });
+        }
+        const r = await saveMediaItem({
+          msg,
+          expectedKind: null,
+          folder,
+          filename: undefined,
+          opts: { skipIfExists, timeoutMs: body?.timeoutMs },
+        });
+        if (r.ok && transcribe && msg.media.kind === "audio") {
+          // Best-effort post-save transcription. Reuse cached if present.
+          if (msg.transcript) {
+            r.transcript = msg.transcript;
+            r.transcribed = false;
+          } else {
+            const apiKey = loadApiKey(projectRoot);
+            if (apiKey) {
+              try {
+                const buf = fs.readFileSync(r.path);
+                const tr = await transcribeAudio(buf, { apiKey, mimeType: msg.media.mimetype || "audio/ogg" });
+                if (tr?.ok && tr.text) {
+                  store.setTranscript(msg.chatId, msg.id, tr.text);
+                  r.transcript = tr.text;
+                  r.transcribed = true;
+                } else {
+                  r.transcribed = false;
+                  r.transcribeError = tr?.error || "unknown";
+                }
+              } catch (e) {
+                r.transcribed = false;
+                r.transcribeError = e?.message || String(e);
+              }
+            }
+          }
+        }
+        if (!r.ok) {
+          if (r.code === "disk_full") stoppedReason = "disk_full";
+          if (r.code === "disconnected" || r.code === "not_connected") stoppedReason = "disconnected";
+        }
+        return r;
+      });
+
+      // Aggregate
+      const saved = items.filter(i => i.ok).length;
+      const failed = items.length - saved;
+      const errors = {};
+      for (const i of items) {
+        if (!i.ok) errors[i.code] = (errors[i.code] || 0) + 1;
+      }
+      const errorsArr = Object.entries(errors).map(([code, count]) => ({ code, count }));
+
+      // Determine the folder where files landed (resolve once).
+      const folderUsed = items.find(i => i.ok)?.folder
+        || resolveFolder({ projectRoot, folder, epochMs: cutoff }).folder
+        || null;
+
+      return sendJson(res, 200, okEnvelope({
+        hours,
+        kinds,
+        folder: folderUsed,
+        candidates: candidates.length,
+        saved,
+        failed,
+        truncatedAt: candidates.length >= maxItems ? "max_items_reached" : (stoppedReason || null),
+        errors: errorsArr,
+        items,
+        durationMs: Date.now() - startedAt,
+      }));
+    }
+        if (route === "GET /where") {
+      // where_do_media_files_go: inspect the default folder.
+      const today = defaultFilenameDir();
+      let exists = false, fileCount = 0, sizeBytes = 0;
+      try {
+        const stat = fs.statSync(today);
+        exists = stat.isDirectory();
+        if (exists) {
+          const files = fs.readdirSync(today);
+          fileCount = files.length;
+          for (const f of files) {
+            try { sizeBytes += fs.statSync(path.join(today, f)).size; } catch {}
+          }
+        }
+      } catch {}
+      return sendJson(res, 200, okEnvelope({
+        defaultFolder: today,
+        defaultFolderForToday: today,
+        exists,
+        fileCount,
+        sizeBytes,
+        projectRoot,
+      }));
     }
     if (route === "GET /healthz") return sendJson(res, 200, { ok: true, pid: process.pid });
 
