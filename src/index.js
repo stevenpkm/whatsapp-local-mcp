@@ -36,6 +36,14 @@ process.on("unhandledRejection", (r) =>
 );
 
 // ---------- bridge management ----------
+// Track the most recent successful contact with the bridge so we can
+// distinguish "bridge is restarting" from "bridge is gone." Declared up here
+// (not below ensureBridge) because spawnBridge writes bridgeSpawnAt and runs
+// during the cold-start ensureBridge() call below — declaring these later
+// would put them in the temporal dead zone and crash on first launch.
+let bridgeLastSeenAt = 0;
+let bridgeSpawnAt = 0;
+
 async function bridgeIsAlive(timeoutMs = 1500) {
   try {
     const ctrl = new AbortController();
@@ -83,11 +91,6 @@ async function ensureBridge() {
 await ensureBridge();
 
 // ---------- HTTP client helpers ----------
-// Track the most recent successful contact with the bridge so we can
-// distinguish "bridge is restarting" from "bridge is gone."
-let bridgeLastSeenAt = 0;
-let bridgeSpawnAt = 0;
-
 async function callBridge(method, route, body, timeoutMs = 90_000) {
   try {
     const ctrl = new AbortController();

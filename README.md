@@ -312,7 +312,10 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 4. Confirm `%APPDATA%\Claude\claude_desktop_config.json` now contains an `mcpServers.whatsapp` entry pointing at this project's `src/index.js`. If not, edit it manually.
 5. Optionally, ask the user for an OpenAI API key for voice transcription. Tell them to paste it directly into `api-key.txt` in the repo root - do not ask them to share it in chat.
 6. Tell them to quit and reopen Claude Desktop / Cowork.
-7. Once back in chat, call the MCP tool `relink_whatsapp` to get a QR. Render the QR's `qr` data string visibly in chat (e.g. via a widget that uses `qrcode-generator` from a CDN). Ask them to scan from WhatsApp -> Settings -> Linked Devices -> Link a Device.
+7. Once back in chat, call the MCP tool `relink_whatsapp` to generate a fresh QR. **Do NOT try to render the QR inline in chat** — it is unreliable. Instead, send the user to the live QR page in their browser:
+   - **Windows:** "Double-click the **Open WhatsApp QR** shortcut on your Desktop." (the installer created it)
+   - **Any OS:** "Open **http://127.0.0.1:8765/qr** in your browser."
+   The page renders a big, scannable QR, auto-refreshes when it expires, and shows **✓ Connected** once linked. Tell them to scan from WhatsApp -> Settings -> Linked Devices -> Link a Device.
 8. After the user scans, call `wait_for_link` to confirm.
 9. Verify with `get_status` that `connected: true`.
 
