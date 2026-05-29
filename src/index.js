@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// WhatsApp MCP server — thin HTTP client for the long-running bridge.
+// WhatsApp MCP server - thin HTTP client for the long-running bridge.
 //
 // Architecture (Plan B):
 //   Cowork → spawns this MCP server (per session)
@@ -39,7 +39,7 @@ process.on("unhandledRejection", (r) =>
 // Track the most recent successful contact with the bridge so we can
 // distinguish "bridge is restarting" from "bridge is gone." Declared up here
 // (not below ensureBridge) because spawnBridge writes bridgeSpawnAt and runs
-// during the cold-start ensureBridge() call below — declaring these later
+// during the cold-start ensureBridge() call below - declaring these later
 // would put them in the temporal dead zone and crash on first launch.
 let bridgeLastSeenAt = 0;
 let bridgeSpawnAt = 0;
@@ -148,7 +148,7 @@ const server = new McpServer({ name: "whatsapp-readonly", version: "0.3.0" });
 // Wrap a bridge result into an MCP tool response. Sets isError: true when
 // the bridge returned ok:false so spec-compliant clients can branch.
 // If the result includes a `path` field (i.e. a saved file), emit an extra
-// `resource_link` content block per MCP spec — that lets capable clients
+// `resource_link` content block per MCP spec - that lets capable clients
 // surface the file as a clickable artifact.
 function asToolResult(obj) {
   const isError = obj && obj.ok === false;
@@ -180,14 +180,14 @@ server.tool(
 
 server.tool(
   "list_chats",
-  "List WhatsApp chats from the local cache, sorted by most recent activity. Each chat has both `name` (human-friendly, e.g. \"XPENG MALAYSIA OWNER CLUB\" or \"Steve\") and `id` (raw WhatsApp JID like \"1234@g.us\"). ALWAYS refer to chats by `name` when talking to the user — the `id` is only for follow-up tool calls and should never be shown to the user.",
+  "List WhatsApp chats from the local cache, sorted by most recent activity. Each chat has both `name` (human-friendly, e.g. \"XPENG MALAYSIA OWNER CLUB\" or \"Steve\") and `id` (raw WhatsApp JID like \"1234@g.us\"). ALWAYS refer to chats by `name` when talking to the user - the `id` is only for follow-up tool calls and should never be shown to the user.",
   { excludeGroups: z.boolean().optional().default(false) },
   async (args) => ok(await callBridge("POST", "/list-chats", args, 15_000))
 );
 
 server.tool(
   "get_recent_messages",
-  "Get messages from the last N hours from the local cache. Optionally filter to one chatId or exclude groups. Each message includes `chat` (the chat's human-friendly name) and `from` (sender's name). NEVER show the raw chatId, msgId, or sender JID to the user — always speak in names. The IDs are only for follow-up tool calls (e.g. get_image needs chatId+msgId).",
+  "Get messages from the last N hours from the local cache. Optionally filter to one chatId or exclude groups. Each message includes `chat` (the chat's human-friendly name) and `from` (sender's name). NEVER show the raw chatId, msgId, or sender JID to the user - always speak in names. The IDs are only for follow-up tool calls (e.g. get_image needs chatId+msgId).",
   {
     hours: z.number().min(1).max(720).default(24),
     excludeGroups: z.boolean().optional().default(false),
@@ -289,7 +289,7 @@ server.tool(
 
 server.tool(
   "enrich_window",
-  "VOICE-ONLY enrichment for the last N hours. Downloads voice notes and transcribes them via OpenAI Whisper. Idempotent (skips already-transcribed). IMPORTANT: this tool no longer touches images — image analysis is done by Claude (you) via the get_image tool, using the Cowork subscription instead of OpenAI Vision. To produce a full brief with both voice transcripts and image descriptions: (1) call enrich_window for voice, (2) call get_image one-by-one for each image in the window and call set_description to cache your description, (3) then call get_recent_messages to read the enriched text and write the brief.",
+  "VOICE-ONLY enrichment for the last N hours. Downloads voice notes and transcribes them via OpenAI Whisper. Idempotent (skips already-transcribed). IMPORTANT: this tool no longer touches images - image analysis is done by Claude (you) via the get_image tool, using the Cowork subscription instead of OpenAI Vision. To produce a full brief with both voice transcripts and image descriptions: (1) call enrich_window for voice, (2) call get_image one-by-one for each image in the window and call set_description to cache your description, (3) then call get_recent_messages to read the enriched text and write the brief.",
   {
     hours: z.number().min(1).max(168).optional().default(12),
     concurrency: z.number().min(1).max(8).optional().default(3),
@@ -329,7 +329,7 @@ server.tool(
 
 server.tool(
   "save_media",
-  "Generic save-to-disk for any media kind (image / audio / video / document). Use save_image or save_voice when you know the type — they're clearer to read. Use this when you have a mixed list of msgIds and don't want to branch.",
+  "Generic save-to-disk for any media kind (image / audio / video / document). Use save_image or save_voice when you know the type - they're clearer to read. Use this when you have a mixed list of msgIds and don't want to branch.",
   {
     chatId: z.string(),
     msgId: z.string(),
@@ -343,7 +343,7 @@ server.tool(
 
 server.tool(
   "list_media_window",
-  "Preview which media items would be saved by save_media_window. Read-only — does NOT download or write anything. Returns per-item entries with chatId, msgId, kind, sender, chat, timestampISO, sizeBytes, mimeType, and `likelyExpired` (true when the media-key is older than ~13 days and the CDN may have garbage-collected the blob). Use this BEFORE save_media_window so you can tell the user 'I would save 14 images and 6 voice notes, but 3 are likely expired — proceed?'",
+  "Preview which media items would be saved by save_media_window. Read-only - does NOT download or write anything. Returns per-item entries with chatId, msgId, kind, sender, chat, timestampISO, sizeBytes, mimeType, and `likelyExpired` (true when the media-key is older than ~13 days and the CDN may have garbage-collected the blob). Use this BEFORE save_media_window so you can tell the user 'I would save 14 images and 6 voice notes, but 3 are likely expired - proceed?'",
   {
     hours: z.number().min(1).max(720).optional().default(24),
     kinds: z.array(z.enum(["image", "voice", "audio", "video", "document"])).optional().default(["image","voice"]).describe("Which media types to include."),
@@ -356,7 +356,7 @@ server.tool(
 
 server.tool(
   "save_media_window",
-  "Bulk-save WhatsApp media from the last N hours to disk. Downloads with bounded concurrency (default 3) and returns PER-ITEM results — items that fail (expired, no keys, network) are reported in `items[].ok=false` with a code, but the overall call still succeeds with `ok:true`. The `errors` array rolls up failure codes ({code, count}) for quick summarization. Default folder: <project>/data/media/<YYYY-MM-DD>/. Each item in the result has the absolute saved path. The call ABORTS the remaining work only on disk_full or disconnected — never on individual download failures.",
+  "Bulk-save WhatsApp media from the last N hours to disk. Downloads with bounded concurrency (default 3) and returns PER-ITEM results - items that fail (expired, no keys, network) are reported in `items[].ok=false` with a code, but the overall call still succeeds with `ok:true`. The `errors` array rolls up failure codes ({code, count}) for quick summarization. Default folder: <project>/data/media/<YYYY-MM-DD>/. Each item in the result has the absolute saved path. The call ABORTS the remaining work only on disk_full or disconnected - never on individual download failures.",
   {
     hours: z.number().min(1).max(720).optional().default(24),
     kinds: z.array(z.enum(["image","voice","audio","video","document"])).optional().default(["image"]).describe("Which media types to save."),

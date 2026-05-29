@@ -2,15 +2,15 @@
 
 Read your own WhatsApp messages from inside Claude. Ask things like *"summarize my last 12 hours of WhatsApp"* or *"who's waiting on a reply?"*, and Claude reads, searches, transcribes voice notes, and looks at images for you.
 
-✅ Runs **100% locally** on your computer &nbsp;·&nbsp; 🔒 **Read-only** — it can never send messages &nbsp;·&nbsp; 💬 Works with **Cowork** and **Claude Desktop**
+✅ Runs **100% locally** on your computer &nbsp;·&nbsp; 🔒 **Read-only** - it can never send messages &nbsp;·&nbsp; 💬 Works with **Cowork** and **Claude Desktop**
 
 ---
 
-## ⚡ Quick start (Cowork — easiest, no terminal)
+## ⚡ Quick start (Cowork - easiest, no terminal)
 
 **Most people should use this.** You need two things:
 
-- **Node.js 18+** — if you don't have it, get it from [nodejs.org](https://nodejs.org/) (just click Next → Next → Install, takes a minute).
+- **Node.js 18+** - if you don't have it, get it from [nodejs.org](https://nodejs.org/) (just click Next → Next → Install, takes a minute).
 - **A phone with WhatsApp** to scan a QR code once.
 
 Then open Cowork and **paste this whole block into the chat:**
@@ -18,15 +18,15 @@ Then open Cowork and **paste this whole block into the chat:**
 ````
 Hi Claude. Please install the WhatsApp MCP for me.
 
-Important: Use the folder you already have access to in this chat. Do NOT ask me to select a new folder — I already granted you a folder when I set up Cowork.
+Important: Use the folder you already have access to in this chat. Do NOT ask me to select a new folder - I already granted you a folder when I set up Cowork.
 
 Repo: https://github.com/stevenpkm/whatsapp-local-mcp
 
 Please do this:
 1. In bash, figure out the path of the folder you already have access to, then cd into it.
 2. Run: git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
-3. Tell me clearly: "Go to <full path>/whatsapp-local-mcp/windows/ and double-click install.bat. A black window will open and run for 2–3 minutes — it downloads dependencies and patches the Cowork config. When it says SUCCESS, close it."
-4. Wait for me to confirm it's done. Then tell me to fully quit Cowork (right-click the tray icon, choose Quit — NOT just close the window) and reopen it.
+3. Tell me clearly: "Go to <full path>/whatsapp-local-mcp/windows/ and double-click install.bat. A black window will open and run for 2-3 minutes - it downloads dependencies and patches the Cowork config. When it says SUCCESS, close it."
+4. Wait for me to confirm it's done. Then tell me to fully quit Cowork (right-click the tray icon, choose Quit - NOT just close the window) and reopen it.
 5. After I reopen and say "scan":
    a. Call mcp__whatsapp__relink_whatsapp (the bridge will generate a fresh QR).
    b. Tell me EXACTLY: "On your Desktop, double-click 'Open WhatsApp QR'. A big QR will open in your browser. Scan it from your phone: WhatsApp → Settings → Linked Devices → Link a Device. The page auto-refreshes if the QR expires, and shows '✓ Connected' once linked."
@@ -43,16 +43,16 @@ Rules:
 Begin now.
 ````
 
-That's it — Cowork's Claude walks you through the rest. The flow:
+That's it - Cowork's Claude walks you through the rest. The flow:
 
-1. It clones the project and tells you to double-click **`install.bat`** (a black window runs ~2–3 minutes, then says **SUCCESS**). The installer also drops an **"Open WhatsApp QR"** shortcut on your Desktop.
+1. It clones the project and tells you to double-click **`install.bat`** (a black window runs ~2-3 minutes, then says **SUCCESS**). The installer also drops an **"Open WhatsApp QR"** shortcut on your Desktop.
 2. *(If Windows shows "Windows protected your PC" → click **More info → Run anyway**.)*
 3. **Fully quit Cowork** from the tray (right-click → Quit, not just close the window) and reopen it.
 4. Type **`scan my WhatsApp`**. Double-click **"Open WhatsApp QR"** on your Desktop, and scan it from your phone (WhatsApp → Settings → Linked Devices → Link a Device). It shows **✓ Connected** when done.
 
 Now try: *"summarize my WhatsApp from the last 12 hours"* 🎉
 
-> *(Optional) Want voice notes turned into text? You can add an OpenAI API key later — see "What it costs" below.*
+> *(Optional) Want voice notes turned into text? You can add an OpenAI API key later - see "What it costs" below.*
 
 ---
 
@@ -97,7 +97,7 @@ npm install
 node scripts/install-mcp-config.mjs   # patches the config
 ```
 
-On macOS the Claude config lives at `~/Library/Application Support/Claude/claude_desktop_config.json`. The install script targets Windows `APPDATA` by default — on macOS, edit the config manually:
+On macOS the Claude config lives at `~/Library/Application Support/Claude/claude_desktop_config.json`. The install script targets Windows `APPDATA` by default - on macOS, edit the config manually:
 
 ```json
 {
@@ -147,7 +147,7 @@ For the bridge to survive across sessions on macOS/Linux, run `node src/bridge.j
 +------------------------------------------------------------+
 ```
 
-Splitting the bridge from the MCP server is the whole trick — Claude Desktop crashes and restarts don't break the WhatsApp link.
+Splitting the bridge from the MCP server is the whole trick - Claude Desktop crashes and restarts don't break the WhatsApp link.
 
 Image analysis uses **Claude's own vision** through your Claude subscription. No separate Anthropic API key needed.
 
@@ -164,7 +164,7 @@ Nothing happens automatically. You only pay when you explicitly ask Claude to do
 | Text-only queries (search, list, status) | Free | --- |
 | Voice-note transcription (Whisper) | OpenAI API | ~$0.001 per voice note |
 | Image analysis (Claude vision) | Your Claude subscription | ~1.5K tokens per image |
-| Brief text analysis | Your Claude subscription | ~5–15K tokens per brief |
+| Brief text analysis | Your Claude subscription | ~5-15K tokens per brief |
 
 A typical daily brief over an active 12h WhatsApp window: a few cents on OpenAI + some Claude tokens.
 
@@ -179,9 +179,9 @@ To enable voice-note transcription, get an OpenAI API key at [platform.openai.co
 - The bridge connects only to WhatsApp's own servers via the [Baileys](https://github.com/WhiskeySockets/Baileys) library (open source).
 - When you ask Claude a question, only the specific messages relevant to that question are sent to Anthropic's servers as part of your normal Claude conversation.
 - If you enable Whisper transcription, voice-note audio bytes are sent to OpenAI for transcription, then the transcript is cached locally. After that, the audio is not re-sent.
-- **No `send_message` tool exists by design** — this MCP cannot send anything on your behalf, which significantly cuts down the prompt-injection blast radius.
-- **Don't share `auth/` or `api-key.txt`** — they're sensitive. `.gitignore` excludes them by default.
-- **WhatsApp ToS gray area:** WhatsApp's official Terms of Service do not explicitly authorize third-party clients via Baileys-style multi-device automation. Read-only personal use has historically not been targeted, but there is no guarantee — use at your own risk.
+- **No `send_message` tool exists by design** - this MCP cannot send anything on your behalf, which significantly cuts down the prompt-injection blast radius.
+- **Don't share `auth/` or `api-key.txt`** - they're sensitive. `.gitignore` excludes them by default.
+- **WhatsApp ToS gray area:** WhatsApp's official Terms of Service do not explicitly authorize third-party clients via Baileys-style multi-device automation. Read-only personal use has historically not been targeted, but there is no guarantee - use at your own risk.
 
 </details>
 
@@ -189,27 +189,27 @@ To enable voice-note transcription, get an OpenAI API key at [platform.openai.co
 <summary><b>⚙️ All the tools (for developers)</b></summary>
 
 **Read tools (cache-only, free):**
-- `get_status` — connection + cache health
-- `list_chats` — all chats with names (not IDs)
-- `get_recent_messages` — last N hours, filterable by chat / group
-- `search_messages` — case-insensitive substring search
-- `get_brief` / `set_brief` — read/write the daily brief artifact JSON
+- `get_status` - connection + cache health
+- `list_chats` - all chats with names (not IDs)
+- `get_recent_messages` - last N hours, filterable by chat / group
+- `search_messages` - case-insensitive substring search
+- `get_brief` / `set_brief` - read/write the daily brief artifact JSON
 
 **Media tools (lazy, on-demand):**
-- `get_image` — return image bytes inline so Claude can SEE the picture (vision)
-- `set_description` — cache Claude's description of an image
-- `save_image` — write a single image to disk; returns absolute path
-- `save_voice` — write a single voice note (.ogg) to disk; optionally also transcribe via Whisper
-- `save_media` — generic save (image/audio/video/document) when the kind isn't known in advance
-- `list_media_window` — read-only preview of what `save_media_window` would save (with `likelyExpired` flag for media older than ~13 days)
-- `save_media_window` — bulk save from the last N hours with bounded concurrency and per-item results
-- `where_do_media_files_go` — return the default folder path and how many files are already in it
-- `enrich_window` — voice-only: download + transcribe voice notes via Whisper (no images — those go through `get_image`)
+- `get_image` - return image bytes inline so Claude can SEE the picture (vision)
+- `set_description` - cache Claude's description of an image
+- `save_image` - write a single image to disk; returns absolute path
+- `save_voice` - write a single voice note (.ogg) to disk; optionally also transcribe via Whisper
+- `save_media` - generic save (image/audio/video/document) when the kind isn't known in advance
+- `list_media_window` - read-only preview of what `save_media_window` would save (with `likelyExpired` flag for media older than ~13 days)
+- `save_media_window` - bulk save from the last N hours with bounded concurrency and per-item results
+- `where_do_media_files_go` - return the default folder path and how many files are already in it
+- `enrich_window` - voice-only: download + transcribe voice notes via Whisper (no images - those go through `get_image`)
 
 **Link management:**
-- `relink_whatsapp` — start a fresh QR pair
-- `wait_for_link` — block until the link succeeds
-- `force_resync` — soft reconnect
+- `relink_whatsapp` - start a fresh QR pair
+- `wait_for_link` - block until the link succeeds
+- `force_resync` - soft reconnect
 
 **Error contract:** every tool returns a structured envelope. Success: `{ ok: true, ...data }`. Failure: `{ ok: false, code, error, ...context }` where `code` is one of a closed set (`media_expired`, `no_keys`, `download_failed`, `not_found`, `not_image`, `disk_error`, `permission_denied`, `disk_full`, `bridge_unreachable`, `bridge_restarting`, `timeout`, `transcribe_failed`, `no_api_key`, `invalid_argument`, ...). The MCP response sets `isError: true` on failure so spec-compliant clients can branch without parsing strings. Bulk operations (`save_media_window`) return `ok: true` even when some items fail; failures appear inside `items[].ok = false` and are rolled up in `errors: [{code, count}]`.
 
@@ -271,7 +271,7 @@ whatsapp-mcp/
 Click `windows\restart-bridge.bat` to kill the old bridge and start a fresh one. The MCP server in Claude will reconnect on next tool call. If it persists, check `data\bridge.log`.
 
 **My phone shows the device "last active" stuck at some old time, even though Claude says connected**
-The WebSocket has gone zombie — TCP socket still open, but no real traffic. The bridge's keepalive + watchdog should auto-fix in ~3 minutes. If not, run `windows\restart-bridge.bat`.
+The WebSocket has gone zombie - TCP socket still open, but no real traffic. The bridge's keepalive + watchdog should auto-fix in ~3 minutes. If not, run `windows\restart-bridge.bat`.
 
 **440 / "stream conflict" errors**
 Another linked device (or a stale one) is claiming the slot. On your phone: WhatsApp → Settings → Linked Devices → log out everything that isn't your current entry. Then ask Claude to "re-link my WhatsApp".
@@ -296,9 +296,9 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 2. Have them clone this repo to a stable path (anywhere except temp folders).
 3. Have them double-click `windows\install.bat` (or run the equivalent on macOS/Linux: `npm install` + `node scripts/install-mcp-config.mjs`).
 4. Confirm `%APPDATA%\Claude\claude_desktop_config.json` now contains an `mcpServers.whatsapp` entry pointing at this project's `src/index.js`. If not, edit it manually.
-5. Optionally, ask the user for an OpenAI API key for voice transcription. Tell them to paste it directly into `api-key.txt` in the repo root — do not ask them to share it in chat.
+5. Optionally, ask the user for an OpenAI API key for voice transcription. Tell them to paste it directly into `api-key.txt` in the repo root - do not ask them to share it in chat.
 6. Tell them to quit and reopen Claude Desktop / Cowork.
-7. Once back in chat, call the MCP tool `relink_whatsapp` to generate a fresh QR. **Do NOT try to render the QR inline in chat** — it is unreliable. Instead, send the user to the live QR page in their browser:
+7. Once back in chat, call the MCP tool `relink_whatsapp` to generate a fresh QR. **Do NOT try to render the QR inline in chat** - it is unreliable. Instead, send the user to the live QR page in their browser:
    - **Windows:** "Double-click the **Open WhatsApp QR** shortcut on your Desktop." (the installer created it)
    - **Any OS:** "Open **http://127.0.0.1:8765/qr** in your browser."
    The page renders a big, scannable QR, auto-refreshes when it expires, and shows **✓ Connected** once linked. Tell them to scan from WhatsApp → Settings → Linked Devices → Link a Device.
@@ -313,4 +313,4 @@ From here, normal queries like "summarize my last 12 hours" will work.
 
 ## License
 
-MIT — see `LICENSE`. Built on [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) and the [Model Context Protocol SDK](https://github.com/modelcontextprotocol).
+MIT - see `LICENSE`. Built on [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) and the [Model Context Protocol SDK](https://github.com/modelcontextprotocol).

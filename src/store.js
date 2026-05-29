@@ -146,7 +146,7 @@ function extractText(m) {
   const poll = m.pollCreationMessage || m.pollCreationMessageV2 || m.pollCreationMessageV3;
   if (poll) {
     const opts = (poll.options || []).map((o) => o.optionName).filter(Boolean);
-    const optStr = opts.length ? ` — ${opts.join(" / ")}` : "";
+    const optStr = opts.length ? ` - ${opts.join(" / ")}` : "";
     return `[poll: ${poll.name || ""}${optStr}]`;
   }
   if (m.pollUpdateMessage) return "[poll vote]";
@@ -376,7 +376,7 @@ export class Store {
     if (tagMatch) {
       const tag = tagMatch[1];
       const caption = (tagMatch[2] || "").trim();
-      m.text = caption ? `${tag} ${caption} — ${description}` : `${tag} ${description}`;
+      m.text = caption ? `${tag} ${caption} - ${description}` : `${tag} ${description}`;
     } else {
       m.text = description;
     }

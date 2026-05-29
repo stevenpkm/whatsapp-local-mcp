@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Per-user state and secrets — NEVER commit
+# Per-user state and secrets - NEVER commit
 auth/
 data/
 api-key.txt

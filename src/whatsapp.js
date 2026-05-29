@@ -1,4 +1,4 @@
-// Baileys connection controller. Read-only — no send/edit/delete functions.
+// Baileys connection controller. Read-only - no send/edit/delete functions.
 //
 // Includes:
 //   - aggressive WebSocket keep-alive (15s)
@@ -94,7 +94,7 @@ export async function createWhatsAppController({
     if (transcribeInFlight >= TRANSCRIBE_PARALLEL) return;
     if (!transcribeQueue.length) return;
     const apiKey = loadApiKey(projectRoot);
-    // Don't drain the queue when no API key — items may become processable
+    // Don't drain the queue when no API key - items may become processable
     // later (e.g. user creates api-key.txt). Just sit on them and re-check
     // when the next item is pushed. This used to silently throw away work.
     if (!apiKey) return;
@@ -140,7 +140,7 @@ export async function createWhatsAppController({
       browser: Browsers.macOS("Cowork"),
       emitOwnEvents: true,
       generateHighQualityLinkPreview: false,
-      // Aggressive keepalive — fires WS ping every 15s. If WhatsApp's
+      // Aggressive keepalive - fires WS ping every 15s. If WhatsApp's
       // server doesn't respond, Baileys closes the socket and our close
       // handler triggers reconnect.
       keepAliveIntervalMs: KEEPALIVE_MS,
@@ -214,7 +214,7 @@ export async function createWhatsAppController({
         const ts = Number(m?.messageTimestamp) || 0;
         if (ts > 0 && ts < cutoffSec) { dropped++; continue; }
         store.addMessage(m);
-        // Voice/image enrichment is on-demand via /enrich-window — no
+        // Voice/image enrichment is on-demand via /enrich-window - no
         // automatic Whisper/Vision calls on message arrival. Keeps OpenAI
         // bill at $0 unless the user actually asks for a brief.
         kept++;
@@ -231,7 +231,7 @@ export async function createWhatsAppController({
     });
 
     // Other low-level events that prove the socket is alive (presence,
-    // group metadata, app-state-sync chunks, etc.) — just bump activity.
+    // group metadata, app-state-sync chunks, etc.) - just bump activity.
     sock.ev.on("messages.update", () => bumpActivity());
     sock.ev.on("message-receipt.update", () => bumpActivity());
     sock.ev.on("presence.update", () => bumpActivity());
@@ -264,7 +264,7 @@ export async function createWhatsAppController({
       if (stopped) return;
       const idle = Date.now() - lastActivityAt;
       if (idle > STALE_THRESHOLD_MS && currentSock) {
-        console.error(`[whatsapp] STALE: no activity for ${Math.round(idle/1000)}s — tearing down zombie socket and reconnecting`);
+        console.error(`[whatsapp] STALE: no activity for ${Math.round(idle/1000)}s - tearing down zombie socket and reconnecting`);
         isConnected = false;
         lastCloseCode = "stale";
         try { await tearDownSocket(); } catch {}
@@ -313,7 +313,7 @@ export async function createWhatsAppController({
 
   async function forceResync() {
     if (!currentSock && stopped) {
-      return { ok: false, error: "stopped (logged out) — call relink first" };
+      return { ok: false, error: "stopped (logged out) - call relink first" };
     }
     isConnected = false;
     await tearDownSocket();

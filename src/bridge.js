@@ -28,7 +28,7 @@ import { transcribeAudio, loadApiKey } from "./transcribe.js";
 import { classifyError, ok as okEnvelope, fail } from "./errors.js";
 import { defaultFilename, resolveFolder, validateFilename, ensureFolder, extFor } from "./media-paths.js";
 // Note: we used to import describeImage from ./vision.js to enrich images
-// via OpenAI gpt-4o-mini Vision. That's now disabled — image analysis is
+// via OpenAI gpt-4o-mini Vision. That's now disabled - image analysis is
 // done by Claude (via the get_image MCP tool, using the Cowork subscription
 // instead of a separate OpenAI bill). vision.js is kept around but unused.
 
@@ -670,7 +670,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "GET /healthz") return sendJson(res, 200, { ok: true, pid: process.pid });
 
-    // Live QR page — open in browser, auto-refreshes, shows "Connected" when linked.
+    // Live QR page - open in browser, auto-refreshes, shows "Connected" when linked.
     if (route === "GET /qr.json") {
       if (!controller) return sendJson(res, 200, { qr: null, connected: false, error: "controller not initialized" });
       return sendJson(res, 200, controller.getCurrentQR());
@@ -753,7 +753,7 @@ const QR_PAGE_HTML = `<!doctype html>
           q.make();
           document.getElementById('qr').innerHTML = q.createSvgTag(8, 0);
         }
-        document.getElementById('age').textContent = 'QR refreshed ' + (j.qrAgeSec || 0) + 's ago — auto-refreshes when it expires';
+        document.getElementById('age').textContent = 'QR refreshed ' + (j.qrAgeSec || 0) + 's ago - auto-refreshes when it expires';
       } else {
         document.getElementById('qr').innerHTML = '<div class="pending">No QR yet. In Cowork, type:<br><br><b>scan my WhatsApp</b><br><br>then come back to this tab.</div>';
         document.getElementById('age').textContent = '';
