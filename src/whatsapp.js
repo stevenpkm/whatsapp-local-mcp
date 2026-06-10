@@ -324,6 +324,20 @@ export async function createWhatsAppController({
     return { ok: true, message: "reconnecting" };
   }
 
+  // On-demand history sync: ask WhatsApp for `count` messages OLDER than the
+  // anchor message (within that anchor's chat). The result arrives asynchronously
+  // via the messaging-history.set handler, which caches it. Returns the request
+  // id, or an error envelope if the socket isn't connected.
+  async function fetchHistory(count, anchorKey, anchorTimestampMs) {
+    if (!currentSock || !isConnected) return { ok: false, error: "socket not connected" };
+    try {
+      const requestId = await currentSock.fetchMessageHistory(count, anchorKey, anchorTimestampMs);
+      return { ok: true, requestId };
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  }
+
   async function fillMissingGroupNames() {
     if (!currentSock) return;
     const missing = [];
@@ -391,5 +405,5 @@ export async function createWhatsAppController({
   connect();
   startWatchdog();
 
-  return { relink, waitForLink, forceResync, getStatus, getCurrentQR };
+  return { relink, waitForLink, forceResync, fetchHistory, getStatus, getCurrentQR };
 }

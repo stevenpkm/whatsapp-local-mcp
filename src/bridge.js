@@ -668,6 +668,61 @@ const server = http.createServer(async (req, res) => {
         projectRoot,
       }));
     }
+    if (route === "POST /backfill-history") {
+      if (!controller) return sendJson(res, 503, fail("bridge_unhealthy", "controller not initialized"));
+      const st = controller.getStatus?.();
+      if (!st?.connected) return sendJson(res, 503, fail("not_connected", "WhatsApp not connected; cannot fetch history"));
+      const body = await readJson(req);
+      const count = Math.max(1, Math.min(500, Number(body?.count) || 50));
+      const topK = Math.max(1, Math.min(100, Number(body?.chats) || 10));
+      const settleMs = Math.max(0, Math.min(60_000, Number(body?.settleMs ?? 20_000)));
+      const onlyChatId = body?.chatId || null;
+
+      // Anchor per chat = the NEWEST cached message in that chat. fetchMessageHistory
+      // pulls `count` messages OLDER than the anchor, which is what covers a recent gap.
+      const newestByChat = new Map();
+      for (const m of store.messages) {
+        if (!m?.chatId || !m?.id) continue;
+        if (onlyChatId && m.chatId !== onlyChatId) continue;
+        const prev = newestByChat.get(m.chatId);
+        if (!prev || (m.timestamp || 0) > (prev.timestamp || 0)) newestByChat.set(m.chatId, m);
+      }
+      let anchors = [...newestByChat.values()].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      if (!onlyChatId) anchors = anchors.slice(0, topK);
+
+      const cacheBefore = store.messages.length;
+      const requested = [];
+      for (const m of anchors) {
+        const key = { remoteJid: m.chatId, fromMe: !!m.fromMe, id: m.id };
+        const r = await controller.fetchHistory(count, key, Number(m.timestamp) || Date.now());
+        requested.push({
+          chat: store.nameFor(m.chatId),
+          chatId: m.chatId,
+          anchorMsgId: m.id,
+          anchorTimeISO: new Date(Number(m.timestamp) || 0).toISOString(),
+          count,
+          ok: !!r?.ok,
+          requestId: r?.ok ? r.requestId : undefined,
+          error: r?.ok ? undefined : r?.error,
+        });
+      }
+
+      // On-demand history arrives asynchronously via messaging-history.set.
+      // Wait a bit, then report how many messages actually landed.
+      if (settleMs) await new Promise((r) => setTimeout(r, settleMs));
+      const cacheAfter = store.messages.length;
+
+      return sendJson(res, 200, okEnvelope({
+        requestedChats: requested.length,
+        count,
+        settleMs,
+        cacheBefore,
+        cacheAfter,
+        messagesAdded: cacheAfter - cacheBefore,
+        requested,
+        note: "On-demand history arrives asynchronously; messagesAdded reflects only what landed within settleMs - more may keep arriving after. HOW FAR BACK WhatsApp serves is decided by WhatsApp; this call is the way to find out for this account. Re-run get_recent_messages to inspect the filled-in history.",
+      }));
+    }
     if (route === "GET /healthz") return sendJson(res, 200, { ok: true, pid: process.pid });
 
     // Live QR page - open in browser, auto-refreshes, shows "Connected" when linked.

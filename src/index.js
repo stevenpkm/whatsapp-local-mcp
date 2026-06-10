@@ -379,8 +379,20 @@ server.tool(
   async () => ok(await callBridge("GET", "/where", null, 5000))
 );
 
+server.tool(
+  "backfill_history",
+  "Try to recover WhatsApp messages missed while the bridge was offline (e.g. you didn't open Cowork for a few days, leaving a gap in the history). For each of the most recently active chats it asks WhatsApp's on-demand history sync (Baileys fetchMessageHistory) for older messages, anchored at the newest cached message in that chat. Results arrive asynchronously and are cached. IMPORTANT: how far back WhatsApp actually serves is decided by WhatsApp, not us - run this to find out empirically for this account. Returns cacheBefore/cacheAfter (messagesAdded) and per-chat request info. If messagesAdded is ~0, WhatsApp didn't serve more for those anchors; a fresh re-link (relink_whatsapp) is the fuller-history fallback.",
+  {
+    chats: z.number().min(1).max(100).optional().default(10).describe("How many recently-active chats to backfill."),
+    count: z.number().min(1).max(500).optional().default(50).describe("Messages to request per chat (older than that chat's newest cached message)."),
+    chatId: z.string().optional().describe("Limit to one chat (its raw JID). Overrides `chats`."),
+    settleMs: z.number().min(0).max(60000).optional().default(20000).describe("How long to wait for async history to land before reporting messagesAdded."),
+  },
+  async (args) => ok(await callBridge("POST", "/backfill-history", args, 90_000))
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error(
-  "[mcp] MCP server ready on stdio. Tools: get_status, list_chats, get_recent_messages, search_messages, get_brief, set_brief, relink_whatsapp, wait_for_link, force_resync, enrich_window, get_image, set_description, save_image, save_voice, save_media, list_media_window, save_media_window, where_do_media_files_go."
+  "[mcp] MCP server ready on stdio. Tools: get_status, list_chats, get_recent_messages, search_messages, get_brief, set_brief, relink_whatsapp, wait_for_link, force_resync, enrich_window, get_image, set_description, save_image, save_voice, save_media, list_media_window, save_media_window, where_do_media_files_go, backfill_history."
 );
