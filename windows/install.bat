@@ -38,21 +38,24 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 1) npm install
-if not exist "node_modules" (
-    echo [1/3] Installing dependencies. This takes 2-3 minutes - please wait.
-    echo       npm shows no progress bar, but it IS working. Don't close this.
+REM 1) npm install - ALWAYS run it here on Windows.
+REM    A node_modules copied in from another machine (e.g. a Linux sandbox)
+REM    has the wrong native binaries (sharp/baileys), so never trust an
+REM    existing one - wipe it and let npm fetch the correct Windows build.
+if exist "node_modules" (
+    echo [1/3] Removing an existing node_modules ^(may be built for another OS^)...
+    rmdir /s /q "node_modules"
+)
+echo [1/3] Installing dependencies. This takes 2-5 minutes - please wait.
+echo       npm shows no progress bar, but it IS working. Don't close this.
+echo.
+call npm install --no-audit --no-fund
+if errorlevel 1 (
     echo.
-    call npm install --no-audit --no-fund
-    if errorlevel 1 (
-        echo.
-        echo ERROR: npm install failed. See messages above.
-        pause
-        popd
-        exit /b 1
-    )
-) else (
-    echo [1/3] Dependencies already installed - skipping.
+    echo ERROR: npm install failed. See messages above.
+    pause
+    popd
+    exit /b 1
 )
 echo.
 

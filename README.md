@@ -16,56 +16,55 @@ Read your own WhatsApp messages from inside Claude. Ask things like *"summarize 
 Then open Cowork and **paste this whole block into the chat:**
 
 ````
-Hi Claude. Please install the WhatsApp MCP for me. I'm NOT technical - do everything
-yourself with bash and your file tools. The only things I'll do: restart Cowork when you
-tell me, and scan a QR with my phone at the end.
+Hi Claude. Please install the WhatsApp MCP for me. I'm NOT technical. The only things I'll
+do are: double-click one installer file, restart Cowork, and scan a QR with my phone.
 
 Repo: https://github.com/stevenpkm/whatsapp-local-mcp
 
-Do this in order:
+Important: your sandbox CANNOT register the MCP or start it on Windows - only INSTALL.bat
+(which I double-click on Windows) can. So your job is to get the files into my folder and
+hand me the installer. Do this in order:
 
-1. Check Node.js: run `node --version`. If it's missing or below v18, STOP and tell me to
-   install it from https://nodejs.org (green LTS button, then Next - Next - Install), then
-   re-paste this prompt.
+1. Check Node.js: run `node --version`. If missing or below v18, STOP and tell me to install
+   it from https://nodejs.org (green LTS button, Next - Next - Install), then re-paste this.
 
-2. Clone the project INTO the folder you already have access to in this chat. Do NOT pick a
-   new path and do NOT ask me to choose another folder - use the one I already gave you. In
-   bash, make sure you're in that folder, then:
-       git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
-   That makes a "whatsapp-local-mcp" subfolder right there. Go into it for the next steps.
+2. Put the project into the folder I gave you access to in this chat (use THAT folder, don't
+   pick another, don't worry whether it's OneDrive). Get the SOURCE only - do NOT run
+   `npm install` and do NOT copy node_modules (INSTALL.bat does that on Windows so the native
+   binaries are correct). Easiest: download the zip and extract it here -
+       https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip
+   (the contents land in a "whatsapp-local-mcp-main" folder). If a direct `git clone` into my
+   folder fails - some synced/mounted folders block git's file locking - that's expected: use
+   the zip, or clone into a temp dir and copy the files in (skip .git and node_modules).
 
-3. Install dependencies. First tell me: "This downloads ~80MB and takes 2-5 minutes with no
-   progress bar - it is NOT stuck." Then, inside the folder, run `npm install` and wait for
-   it to finish. Don't poll it, don't say it's stuck.
+3. OPEN that folder for me so I can see the files - do NOT just print a path, I won't go dig
+   for it. Open it in Explorer (you may use computer-use just to open the window). Then tell
+   me: "Double-click INSTALL.bat in the folder I opened. A black window runs ~2-5 min
+   (installs dependencies + registers the MCP), then says SUCCESS." If Windows warns "Windows
+   protected your PC", I click More info -> Run anyway.
 
-4. Register the MCP - run:  node scripts/install-mcp-config.mjs
-   It prints "Installed" when done. (If it can't write the global config it falls back to a
-   local .mcp.json automatically - either is fine.)
+4. Wait for me to say the installer finished. Then tell me to FULLY quit Cowork (tray icon ->
+   Quit, NOT just close the window) and reopen it. Approve the tools prompt if one appears.
 
-5. Tell me to FULLY quit Cowork (tray icon near the clock - right-click - Quit, NOT just
-   close the window), then reopen it. If a "trust this project's tools / approve MCP" prompt
-   appears after reopening, tell me to approve it.
+5. After I reopen and say "scan": call mcp__whatsapp__relink_whatsapp for a fresh QR, then
+   open http://127.0.0.1:8765/qr in Claude's inline browser / preview so the QR shows right
+   here in the sidebar. (If the inline browser can't reach it, tell me to open that URL in my
+   own browser instead.) I scan from WhatsApp -> Settings -> Linked Devices -> Link a Device.
 
-6. After I reopen and say "scan": call mcp__whatsapp__relink_whatsapp, then tell me to open
-   http://127.0.0.1:8765/qr in my browser and scan it from my phone (WhatsApp - Settings -
-   Linked Devices - Link a Device). Do NOT render the QR inline - send me to that page.
-
-7. Verify: call mcp__whatsapp__wait_for_link, then mcp__whatsapp__get_status. Confirm
+6. Verify: call mcp__whatsapp__wait_for_link, then mcp__whatsapp__get_status. Confirm
    connected: true, then tell me to try: "summarize my WhatsApp from the last 12 hours".
 
-Rules:
-- Don't tell me to double-click anything or open File Explorer.
-- Don't use computer-use. Use only bash and your file tools.
-- If a step fails, tell me exactly what failed and what you'll try next.
+If any step fails, tell me exactly what failed and what you'll try next.
 
 Begin now.
 ````
 
-That's it - Cowork's Claude does the whole install itself (clone, dependencies, config) with no terminal and no `.bat` for you. The flow:
+That's it. The flow:
 
-1. Claude clones the project into the folder you gave Cowork access to, runs `npm install` (~2-5 min), and registers the MCP - all by itself.
-2. **Fully quit Cowork** from the tray (right-click → Quit, not just close the window) and reopen it. If an "approve this project's tools" prompt appears, click approve.
-3. Type **`scan my WhatsApp`**. Claude shows you a link - open **http://127.0.0.1:8765/qr** in your browser and scan the QR from your phone (WhatsApp → Settings → Linked Devices → Link a Device). The page shows **✓ Connected** when done.
+1. Claude downloads the project into your folder and **opens the folder** for you.
+2. **Double-click `INSTALL.bat`** in that folder. A black window runs ~2-5 min (installs dependencies + registers the MCP), then says **SUCCESS**. (If Windows warns "protected your PC", click **More info → Run anyway**.)
+3. **Fully quit Cowork** from the tray (right-click → Quit, not just close the window) and reopen it. Approve the tools prompt if one appears.
+4. Type **`scan my WhatsApp`**. Claude shows the QR **right in the sidebar** - scan it from your phone (WhatsApp → Settings → Linked Devices → Link a Device). Shows **✓ Connected** when done.
 
 Now try: *"summarize my WhatsApp from the last 12 hours"* 🎉
 
@@ -309,19 +308,19 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 
 *(This section is written for Claude itself, in case the user pastes this README into a chat and asks Claude to install the project.)*
 
-Do the whole install yourself with bash + your file tools. Do NOT use computer-use, and do NOT make the user double-click anything.
+Your sandbox CANNOT register the MCP (it can't write Cowork's protected global config, and Cowork does NOT read a project `.mcp.json`) and CANNOT start a Windows process. So you can't finish the install yourself - the last mile is the user double-clicking `INSTALL.bat` on Windows. Your job: get the source into their folder and hand off.
 
 1. Confirm Node 18+ (`node --version`). If missing, point them to https://nodejs.org/ and stop.
-2. Clone into the folder the user already granted this Cowork session (clone a `whatsapp-local-mcp` subfolder inside the current working folder). Don't invent a new path or ask the user to pick one.
-3. Run `npm install` in that folder. Warn the user it takes 2-5 min with no progress bar; don't poll or call it stuck.
-4. Run `node scripts/install-mcp-config.mjs`. It merges an `mcpServers.whatsapp` entry (absolute path to `src/index.js`) into `%APPDATA%\Claude\claude_desktop_config.json`, backing it up first. If it can't write there it falls back to a project-local `.mcp.json` automatically. It prints "Installed" on success.
-5. Optionally, ask the user for an OpenAI API key for voice transcription. Tell them to paste it directly into `api-key.txt` in the repo root - do not ask them to share it in chat.
-6. Tell them to **fully quit** Claude Desktop / Cowork (tray → Quit) and reopen. If an "approve this project's MCP servers" prompt appears, tell them to approve it.
-7. Once back in chat, call `relink_whatsapp` to generate a fresh QR. **Do NOT render the QR inline** - it is unreliable. Send the user to the live page: "Open **http://127.0.0.1:8765/qr** in your browser." It renders a big, scannable QR, auto-refreshes when it expires, and shows **✓ Connected** once linked. Tell them to scan from WhatsApp → Settings → Linked Devices → Link a Device.
-8. After the user scans, call `wait_for_link` to confirm.
-9. Verify with `get_status` that `connected: true`.
+2. Put the SOURCE into the folder the user already granted this session - do NOT run `npm install` and do NOT copy `node_modules` (a sandbox-built one has the wrong native binaries; `INSTALL.bat` installs them on Windows). Prefer the zip (`https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip`); if a direct `git clone` into a synced/mounted folder fails on lock/unlink, that's expected - use the zip, or clone to a temp dir and copy the source in (skip `.git` and `node_modules`).
+3. OPEN the folder for the user (Explorer / file view; using computer-use just to open the window is fine). Tell them to double-click `INSTALL.bat` - it runs `npm install` + registers the MCP on Windows, then says SUCCESS. (If SmartScreen warns, More info → Run anyway.)
+4. After they say it finished, tell them to **fully quit** Cowork (tray → Quit) and reopen. Approve the MCP-trust prompt if it appears.
+5. Once back, call `relink_whatsapp` for a fresh QR, then open `http://127.0.0.1:8765/qr` in Claude's inline browser/preview so the QR shows in the sidebar. If the inline browser can't reach it, send them to that URL in their own browser. They scan from WhatsApp → Settings → Linked Devices → Link a Device.
+6. Call `wait_for_link`, then `get_status` to confirm `connected: true`.
+7. (Optional) For voice transcription, have them paste an OpenAI key into `api-key.txt` in the project root - never in chat.
 
-From here, normal queries like "summarize my last 12 hours" will work.
+A quick `node scripts/doctor.mjs` prints Node version, whether the global config has the entry, bridge reachability on 8765, and connection status - use it to check state instead of guessing.
+
+From here, normal queries like "summarize my last 12 hours" work.
 
 </details>
 

@@ -1,18 +1,15 @@
 // Registers the "whatsapp" MCP server so Cowork / Claude Desktop will launch it.
 //
-// Designed to be run by the Cowork agent itself (no .bat, no admin, no
-// computer-use). It tries the proven path first and falls back automatically:
+// IMPORTANT: this must run ON THE MACHINE where Cowork/Claude Desktop is
+// installed (i.e. via windows/install.bat on Windows). A Cowork agent in its
+// sandbox CANNOT run this usefully: it can't reach Cowork's protected global
+// config, and Cowork does NOT read a project-scoped .mcp.json. So this is a
+// Windows-host step, not an agent step.
 //
-//   1. PRIMARY  - merge a "whatsapp" entry into the global config
-//                 (%APPDATA%\Claude\claude_desktop_config.json). Confirmed:
-//                 Cowork reads this. Backs the file up first, never clobbers
-//                 other servers.
-//   2. FALLBACK - if the global file can't be written (locked-down
-//                 permissions), drop a project-local `.mcp.json` next to the
-//                 code instead, so a project-scoped client can still find it.
-//
-// Idempotent: running it twice changes nothing the second time.
-// Cross-platform: on macOS/Linux it targets the right config dir too.
+// What it does: merge a "whatsapp" entry into the global config
+// (%APPDATA%\Claude\claude_desktop_config.json on Windows). Backs the file up
+// first, never clobbers other servers. Idempotent. Cross-platform (also targets
+// the right config dir on macOS/Linux).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -23,7 +20,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
 const indexPath = path.join(projectRoot, "src", "index.js");
 
-// The single source of truth for what we register, reused by both paths.
 const SERVER_ENTRY = { command: "node", args: [indexPath] };
 
 // ---- locate the global config for this OS -------------------------------
@@ -35,11 +31,9 @@ function globalConfigPath() {
   if (process.platform === "darwin") {
     return path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json");
   }
-  // Linux / other
   return path.join(os.homedir(), ".config", "Claude", "claude_desktop_config.json");
 }
 
-// ---- helpers ------------------------------------------------------------
 function readJsonIfAny(file) {
   if (!fs.existsSync(file)) return {};
   const raw = fs.readFileSync(file, "utf8");
@@ -53,7 +47,6 @@ function mergeIntoConfig(configPath) {
 
   let config = {};
   if (fs.existsSync(configPath)) {
-    // Back up before touching an existing file.
     const backup = `${configPath}.backup-${process.pid}-${indexPath.length}`;
     try { fs.copyFileSync(configPath, backup); } catch {}
     try {
@@ -74,28 +67,15 @@ function mergeIntoConfig(configPath) {
   return before === after ? "already" : "written";
 }
 
-// Fallback: a project-scoped .mcp.json next to the code.
-function writeProjectMcpJson() {
-  const file = path.join(projectRoot, ".mcp.json");
-  let config = {};
-  try { config = readJsonIfAny(file); } catch { config = {}; }
-  if (!config.mcpServers || typeof config.mcpServers !== "object") config.mcpServers = {};
-  config.mcpServers.whatsapp = SERVER_ENTRY;
-  fs.writeFileSync(file, JSON.stringify(config, null, 2));
-  return file;
-}
-
 // ---- run ----------------------------------------------------------------
 console.log("Registering the WhatsApp MCP...");
 console.log("  server entry: node", indexPath);
 console.log("");
 
 const configPath = globalConfigPath();
-let registered = false;
 
 try {
   const result = mergeIntoConfig(configPath);
-  registered = true;
   if (result === "already") {
     console.log("OK - config already had the whatsapp entry. No change needed.");
   } else {
@@ -103,28 +83,19 @@ try {
     console.log("     " + configPath);
   }
 } catch (e) {
-  console.error("Could not write the global config:", e.message);
-  console.error("Falling back to a project-local .mcp.json instead...");
-  try {
-    const file = writeProjectMcpJson();
-    registered = true;
-    console.log("OK - wrote " + file);
-    console.log("     (Cowork will pick this up when this folder is the open workspace.)");
-  } catch (e2) {
-    console.error("Fallback also failed:", e2.message);
-  }
+  console.error("FAILED to write the global config:", e.message);
+  console.error("");
+  console.error("This script must run on the machine where Cowork/Claude Desktop");
+  console.error("is installed (run windows\\install.bat by double-clicking it).");
+  console.error("Target config: " + configPath);
+  process.exit(1);
 }
 
 console.log("");
-if (registered) {
-  console.log("=========================================================");
-  console.log(" Installed. Two more steps - both on your side:");
-  console.log("  1. FULLY quit Cowork (tray icon -> Quit, not just close)");
-  console.log("     and open it again.");
-  console.log("  2. In the chat, say:  scan my WhatsApp");
-  console.log("=========================================================");
-  process.exit(0);
-} else {
-  console.error("Registration failed by every method. Nothing was installed.");
-  process.exit(1);
-}
+console.log("=========================================================");
+console.log(" Installed. Two more steps - both on your side:");
+console.log("  1. FULLY quit Cowork (tray icon -> Quit, not just close)");
+console.log("     and open it again.");
+console.log("  2. In the chat, say:  scan my WhatsApp");
+console.log("=========================================================");
+process.exit(0);
