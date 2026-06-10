@@ -28,10 +28,11 @@ Do this in order:
    install it from https://nodejs.org (green LTS button, then Next - Next - Install), then
    re-paste this prompt.
 
-2. Clone to a stable, non-OneDrive folder (keeps my WhatsApp credentials off the cloud and
-   the path stable). In bash:
-       git clone https://github.com/stevenpkm/whatsapp-local-mcp.git "$HOME/whatsapp-local-mcp"
-   If that folder already exists, skip the clone and just use it.
+2. Clone the project INTO the folder you already have access to in this chat. Do NOT pick a
+   new path and do NOT ask me to choose another folder - use the one I already gave you. In
+   bash, make sure you're in that folder, then:
+       git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
+   That makes a "whatsapp-local-mcp" subfolder right there. Go into it for the next steps.
 
 3. Install dependencies. First tell me: "This downloads ~80MB and takes 2-5 minutes with no
    progress bar - it is NOT stuck." Then, inside the folder, run `npm install` and wait for
@@ -62,7 +63,7 @@ Begin now.
 
 That's it - Cowork's Claude does the whole install itself (clone, dependencies, config) with no terminal and no `.bat` for you. The flow:
 
-1. Claude clones the project to `C:\Users\<you>\whatsapp-local-mcp`, runs `npm install` (~2-5 min), and registers the MCP - all by itself.
+1. Claude clones the project into the folder you gave Cowork access to, runs `npm install` (~2-5 min), and registers the MCP - all by itself.
 2. **Fully quit Cowork** from the tray (right-click → Quit, not just close the window) and reopen it. If an "approve this project's tools" prompt appears, click approve.
 3. Type **`scan my WhatsApp`**. Claude shows you a link - open **http://127.0.0.1:8765/qr** in your browser and scan the QR from your phone (WhatsApp → Settings → Linked Devices → Link a Device). The page shows **✓ Connected** when done.
 
@@ -311,7 +312,7 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 Do the whole install yourself with bash + your file tools. Do NOT use computer-use, and do NOT make the user double-click anything.
 
 1. Confirm Node 18+ (`node --version`). If missing, point them to https://nodejs.org/ and stop.
-2. Clone to a **stable, non-OneDrive** path so credentials never sync to the cloud and the path never breaks: `git clone <repo> "$HOME/whatsapp-local-mcp"` (= `C:\Users\<user>\whatsapp-local-mcp`). If it exists already, reuse it.
+2. Clone into the folder the user already granted this Cowork session (clone a `whatsapp-local-mcp` subfolder inside the current working folder). Don't invent a new path or ask the user to pick one. Note: the user's WhatsApp credentials live in that folder's `auth/`; if the folder is actively synced to a cloud drive (OneDrive/Dropbox), tell them those credentials would sync to the cloud.
 3. Run `npm install` in that folder. Warn the user it takes 2-5 min with no progress bar; don't poll or call it stuck.
 4. Run `node scripts/install-mcp-config.mjs`. It merges an `mcpServers.whatsapp` entry (absolute path to `src/index.js`) into `%APPDATA%\Claude\claude_desktop_config.json`, backing it up first. If it can't write there it falls back to a project-local `.mcp.json` automatically. It prints "Installed" on success.
 5. Optionally, ask the user for an OpenAI API key for voice transcription. Tell them to paste it directly into `api-key.txt` in the repo root - do not ask them to share it in chat.
