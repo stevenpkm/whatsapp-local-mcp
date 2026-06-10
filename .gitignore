@@ -19,3 +19,6 @@ Thumbs.db
 
 # Claude Desktop config backups created by install-mcp-config.mjs
 *.backup-*
+
+# Generated locally by install-mcp-config.mjs (machine-specific absolute path)
+.mcp.json
