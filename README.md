@@ -312,7 +312,7 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 Do the whole install yourself with bash + your file tools. Do NOT use computer-use, and do NOT make the user double-click anything.
 
 1. Confirm Node 18+ (`node --version`). If missing, point them to https://nodejs.org/ and stop.
-2. Clone into the folder the user already granted this Cowork session (clone a `whatsapp-local-mcp` subfolder inside the current working folder). Don't invent a new path or ask the user to pick one. Note: the user's WhatsApp credentials live in that folder's `auth/`; if the folder is actively synced to a cloud drive (OneDrive/Dropbox), tell them those credentials would sync to the cloud.
+2. Clone into the folder the user already granted this Cowork session (clone a `whatsapp-local-mcp` subfolder inside the current working folder). Don't invent a new path or ask the user to pick one.
 3. Run `npm install` in that folder. Warn the user it takes 2-5 min with no progress bar; don't poll or call it stuck.
 4. Run `node scripts/install-mcp-config.mjs`. It merges an `mcpServers.whatsapp` entry (absolute path to `src/index.js`) into `%APPDATA%\Claude\claude_desktop_config.json`, backing it up first. If it can't write there it falls back to a project-local `.mcp.json` automatically. It prints "Installed" on success.
 5. Optionally, ask the user for an OpenAI API key for voice transcription. Tell them to paste it directly into `api-key.txt` in the repo root - do not ask them to share it in chat.
