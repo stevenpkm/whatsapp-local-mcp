@@ -1,0 +1,9 @@
+# Shell scripts MUST keep LF line endings, or they fail on macOS/Linux
+# with "bad interpreter: /bin/bash^M". Force LF regardless of who clones.
+*.command  text eol=lf
+*.sh       text eol=lf
+*.mjs      text eol=lf
+*.js       text eol=lf
+
+# Windows batch files keep CRLF
+*.bat      text eol=crlf

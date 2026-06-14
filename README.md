@@ -102,31 +102,30 @@ Now try: *"summarize my WhatsApp from the last 12 hours"* 🎉
 5. Quit and reopen Claude Desktop.
 6. In chat, type **`scan my WhatsApp`** and scan the QR on your phone.
 
-### macOS / Linux
+### macOS
 
-The Windows `.bat` helpers don't run here, but the Node code is cross-platform.
+The Node code is cross-platform, and macOS has its own one-click installer.
+
+1. Install **Node.js 18+** from [nodejs.org](https://nodejs.org/) (download the LTS `.pkg`, open it, Install).
+2. Get the project into a folder (clone it, or download the zip and unzip).
+3. **Double-click `INSTALL.command`** in the project folder. It runs `npm install` and registers the MCP into `~/Library/Application Support/Claude/claude_desktop_config.json` (auto-detected - no manual editing).
+   - If macOS blocks it ("unidentified developer", or it opens in a text editor instead of running): open **Terminal** (Spotlight → type *Terminal*), then paste `bash "` , drag `INSTALL.command` onto the window, type `"`, and press Enter.
+4. *(Optional)* For voice transcription, put your OpenAI key in `api-key.txt` in the project root.
+5. **Fully quit** Cowork / Claude Desktop (Cmd-Q) and reopen.
+6. In chat, type **`scan my WhatsApp`** and scan the QR (the live page is `http://127.0.0.1:8765/qr`).
+
+The bridge auto-starts when Cowork launches the MCP and survives Cowork restarts (detached), same as Windows. `mac/restart-bridge.command` restarts it if needed; `mac/reset.command` wipes auth + cache.
+
+### Linux
+
+Same Node code; no `.command` wrapper, so run it manually:
 
 ```bash
 git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
 cd whatsapp-local-mcp
 npm install
-node scripts/install-mcp-config.mjs   # patches the config
+node scripts/install-mcp-config.mjs   # writes ~/.config/Claude/claude_desktop_config.json
 ```
-
-On macOS the Claude config lives at `~/Library/Application Support/Claude/claude_desktop_config.json`. The install script targets Windows `APPDATA` by default - on macOS, edit the config manually:
-
-```json
-{
-  "mcpServers": {
-    "whatsapp": {
-      "command": "node",
-      "args": ["/absolute/path/to/whatsapp-local-mcp/src/index.js"]
-    }
-  }
-}
-```
-
-For the bridge to survive across sessions on macOS/Linux, run `node src/bridge.js` in a launchctl/systemd unit (the Windows `.bat` handles spawning automatically).
 
 </details>
 
