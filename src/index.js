@@ -58,9 +58,17 @@ async function bridgeIsAlive(timeoutMs = 1500) {
 
 async function spawnBridge() {
   console.error(`[mcp] starting bridge: ${process.execPath} ${bridgePath}`);
+  // Send the bridge's stdout/stderr to data/bridge.log so disconnect reasons
+  // are diagnosable later. This used to be stdio:"ignore", which discarded
+  // everything and left us blind when the socket wedged.
+  let logFd = "ignore";
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    logFd = fs.openSync(path.join(dataDir, "bridge.log"), "a");
+  } catch {}
   const child = spawn(process.execPath, [bridgePath], {
     detached: true,
-    stdio: "ignore",
+    stdio: ["ignore", logFd, logFd],
     cwd: projectRoot,
     env: { ...process.env },
   });

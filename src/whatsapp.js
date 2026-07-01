@@ -178,8 +178,15 @@ export async function createWhatsAppController({
         if (stopped) return;
         if (loggedOut) { stopped = true; return; }
 
-        const delay = code === 515 ? 500 : Math.min(30_000, 1000 * attempts);
-        setTimeout(() => { connect(); }, delay);
+        // Exponential backoff, capped at 5 min. Hammering WhatsApp on 428 (the
+        // old min(30s) cap meant retrying every 30s forever) triggers a
+        // temporary rate-limit that turns a recoverable drop into a stuck
+        // "428, no QR" loop. 515 (restartRequired) is a normal post-pair
+        // signal, so reconnect fast for that one only.
+        const delay = code === 515
+          ? 500
+          : Math.min(5 * 60_000, 2000 * Math.pow(2, Math.min(attempts, 8)));
+        setTimeout(() => { if (!stopped) connect(); }, delay);
       }
     });
 
