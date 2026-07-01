@@ -243,7 +243,7 @@ server.tool(
 
 server.tool(
   "relink_whatsapp",
-  "Delete stale credentials and start a fresh QR pair. Returns the raw QR data string in `qr`; render it as a scannable QR image and ask the user to scan it from their phone (WhatsApp → Settings → Linked Devices → Link a Device). Cache is preserved.",
+  "Delete stale credentials and start a fresh QR pair (cache is preserved). IMPORTANT: do NOT render the returned `qr` string as an inline image - an inline QR expires in ~20s and cannot refresh, which strands the user. Instead tell the user to open http://127.0.0.1:8765/qr in their browser (or the 'Open WhatsApp QR' desktop shortcut created at install); that page shows a large auto-refreshing QR and flips to '✓ Connected' once linked. They scan it from WhatsApp → Settings → Linked Devices → Link a Device.",
   { waitMs: z.number().min(5000).max(60000).optional().default(25000) },
   async (args) => ok(await callBridge("POST", "/relink", args, 30_000))
 );
