@@ -25,33 +25,33 @@ Important: your sandbox CANNOT register the MCP or start it on Windows - only IN
 (which I double-click on Windows) can. So your job is to get the files into my folder and
 hand me the installer. Do this in order:
 
-1. Check Node.js: run `node --version`. If missing or below v18, STOP and tell me to install
-   it from https://nodejs.org (green LTS button, Next - Next - Install), then re-paste this.
-
-2. Put the project into the folder I gave you access to in this chat (use THAT folder, don't
+1. Put the project into the folder I gave you access to in this chat (use THAT folder, don't
    pick another, don't worry whether it's OneDrive). Get the SOURCE only - do NOT run
-   `npm install` and do NOT copy node_modules (INSTALL.bat does that on Windows so the native
-   binaries are correct). Easiest: download the zip and extract it here -
+   `npm install` and do NOT copy node_modules (the installer does that so the native binaries
+   are correct). Easiest: download the zip and extract it here -
        https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip
    (the contents land in a "whatsapp-local-mcp-main" folder). If a direct `git clone` into my
    folder fails - some synced/mounted folders block git's file locking - that's expected: use
    the zip, or clone into a temp dir and copy the files in (skip .git and node_modules).
 
-3. OPEN that folder for me so I can see the files - do NOT just print a path, I won't go dig
-   for it. Open it in Explorer (you may use computer-use just to open the window). Then tell
-   me: "Double-click INSTALL.bat in the folder I opened. A black window runs ~2-5 min
-   (installs dependencies + registers the MCP), then says SUCCESS." If Windows warns "Windows
-   protected your PC", I click More info -> Run anyway.
+2. Do NOT use computer-use, and do NOT open Explorer/Finder or any app yourself. Just tell me,
+   in plain text, the full path of that folder and to double-click INSTALL.bat (Windows) or
+   INSTALL.command (Mac) inside it. A window runs ~2-5 min - it checks Node (if Node is
+   missing it opens nodejs.org for me, and I re-run it after installing), installs
+   dependencies, and registers the MCP, then says SUCCESS. If Windows warns "protected your
+   PC", I click More info -> Run anyway; on Mac if it won't run, I right-click it -> Open.
 
-4. Wait for me to say the installer finished. Then tell me to FULLY quit Cowork (tray icon ->
-   Quit, NOT just close the window) and reopen it. Approve the tools prompt if one appears.
+3. Wait for me to say the installer finished. Then tell me to FULLY quit Cowork (tray /
+   menu-bar icon -> Quit, NOT just close the window) and reopen it. Approve the tools prompt
+   if one appears.
 
-5. After I reopen and say "scan": call mcp__whatsapp__relink_whatsapp for a fresh QR, then
-   open http://127.0.0.1:8765/qr in Claude's inline browser / preview so the QR shows right
-   here in the sidebar. (If the inline browser can't reach it, tell me to open that URL in my
-   own browser instead.) I scan from WhatsApp -> Settings -> Linked Devices -> Link a Device.
+4. After I reopen and say "scan": call mcp__whatsapp__relink_whatsapp, then send me to the
+   live page http://127.0.0.1:8765/qr (open it in your inline browser / preview, or tell me to
+   open that URL in my own browser). Do NOT paste the QR as an image - the live page
+   auto-refreshes when it expires and shows "Connected" when done. I scan from WhatsApp ->
+   Settings -> Linked Devices -> Link a Device.
 
-6. Verify: call mcp__whatsapp__wait_for_link, then mcp__whatsapp__get_status. Confirm
+5. Verify: call mcp__whatsapp__wait_for_link, then mcp__whatsapp__get_status. Confirm
    connected: true, then tell me to try: "summarize my WhatsApp from the last 12 hours".
 
 If any step fails, tell me exactly what failed and what you'll try next.
@@ -61,8 +61,8 @@ Begin now.
 
 That's it. The flow:
 
-1. Claude downloads the project into your folder and **opens the folder** for you.
-2. **Double-click `INSTALL.bat`** in that folder. A black window runs ~2-5 min (installs dependencies + registers the MCP), then says **SUCCESS**. (If Windows warns "protected your PC", click **More info → Run anyway**.)
+1. Claude downloads the project into your folder and tells you the folder path (it won't use computer-use or open windows for you).
+2. **Double-click `INSTALL.bat`** in that folder. A black window runs ~2-5 min (checks Node, installs dependencies, registers the MCP), then says **SUCCESS**. (If Windows warns "protected your PC", click **More info → Run anyway**.)
 3. **Fully quit Cowork** from the tray (right-click → Quit, not just close the window) and reopen it. Approve the tools prompt if one appears.
 4. Type **`scan my WhatsApp`**. Claude shows the QR **right in the sidebar** - scan it from your phone (WhatsApp → Settings → Linked Devices → Link a Device). Shows **✓ Connected** when done.
 
@@ -319,13 +319,12 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 
 Your sandbox CANNOT register the MCP (it can't write Cowork's protected global config, and Cowork does NOT read a project `.mcp.json`) and CANNOT start a Windows process. So you can't finish the install yourself - the last mile is the user double-clicking `INSTALL.bat` on Windows. Your job: get the source into their folder and hand off.
 
-1. Confirm Node 18+ (`node --version`). If missing, point them to https://nodejs.org/ and stop.
-2. Put the SOURCE into the folder the user already granted this session - do NOT run `npm install` and do NOT copy `node_modules` (a sandbox-built one has the wrong native binaries; `INSTALL.bat` installs them on Windows). Prefer the zip (`https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip`); if a direct `git clone` into a synced/mounted folder fails on lock/unlink, that's expected - use the zip, or clone to a temp dir and copy the source in (skip `.git` and `node_modules`).
-3. OPEN the folder for the user (Explorer / file view; using computer-use just to open the window is fine). Tell them to double-click `INSTALL.bat` - it runs `npm install` + registers the MCP on Windows, then says SUCCESS. (If SmartScreen warns, More info → Run anyway.)
-4. After they say it finished, tell them to **fully quit** Cowork (tray → Quit) and reopen. Approve the MCP-trust prompt if it appears.
-5. Once back, call `relink_whatsapp` for a fresh QR, then open `http://127.0.0.1:8765/qr` in Claude's inline browser/preview so the QR shows in the sidebar. If the inline browser can't reach it, send them to that URL in their own browser. They scan from WhatsApp → Settings → Linked Devices → Link a Device.
-6. Call `wait_for_link`, then `get_status` to confirm `connected: true`.
-7. (Optional) For voice transcription, have them paste an OpenAI key into `api-key.txt` in the project root - never in chat.
+1. Put the SOURCE into the folder the user already granted this session - do NOT run `npm install` and do NOT copy `node_modules` (a sandbox-built one has the wrong native binaries; the installer builds them on the host). Prefer the zip (`https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip`); if a direct `git clone` into a synced/mounted folder fails on lock/unlink, that's expected - use the zip, or clone to a temp dir and copy the source in (skip `.git` and `node_modules`).
+2. Do NOT use computer-use, and do NOT open Explorer/Finder or any app. Just give them, in plain text, the folder's full path and tell them to double-click `INSTALL.bat` (Windows) or `INSTALL.command` (Mac). The installer checks Node on the host (opening nodejs.org if it's missing or too old), runs `npm install`, registers the MCP, then says SUCCESS. Don't run `node --version` yourself - your sandbox's Node isn't the user's machine's Node, so it proves nothing; the installer is the real check. (If SmartScreen/Gatekeeper warns: Windows More info → Run anyway; Mac right-click → Open.)
+3. After they say it finished, tell them to **fully quit** Cowork (tray / menu-bar → Quit) and reopen. Approve the MCP-trust prompt if it appears.
+4. Once back, call `relink_whatsapp`, then send them to the live page `http://127.0.0.1:8765/qr` (open it in your inline browser/preview, or have them open the URL). Do NOT paste the QR as an image - the live page auto-refreshes when it expires and shows Connected once linked. They scan from WhatsApp → Settings → Linked Devices → Link a Device.
+5. Call `wait_for_link`, then `get_status` to confirm `connected: true`.
+6. (Optional) For voice transcription, have them paste an OpenAI key into `api-key.txt` in the project root - never in chat.
 
 A quick `node scripts/doctor.mjs` prints Node version, whether the global config has the entry, bridge reachability on 8765, and connection status - use it to check state instead of guessing.
 
