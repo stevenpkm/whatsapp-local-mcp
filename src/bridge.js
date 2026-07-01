@@ -802,7 +802,7 @@ const QR_PAGE_HTML = `<!doctype html>
   <div class="hint" id="hint">On your phone: WhatsApp → Settings → Linked Devices → Link a Device → scan</div>
   <div class="age" id="age"></div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" onerror="var e=document.getElementById('qr');if(e){e.innerHTML='QR code library could not load. Check the internet on this device, then reload this page.';}"></script>
 <script>
   let currentQR = null;
   let done = false;
@@ -886,7 +886,7 @@ const DASHBOARD_HTML = `<!doctype html>
   </div>
   <details><summary>Details (diagnosis)</summary><pre id="details">...</pre></details>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" onerror="var e=document.getElementById('qr');if(e){e.innerHTML='QR code library could not load. Check the internet on this device, then reload this page.';}"></script>
 <script>
   var relinkMode=false, curQR=null;
   function $id(x){return document.getElementById(x);}

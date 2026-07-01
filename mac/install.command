@@ -46,5 +46,30 @@ echo
 echo "[2/2] Registering the MCP..."
 node scripts/install-mcp-config.mjs
 
+# Desktop shortcut to the live QR page (Windows creates the same one).
+QR_SHORTCUT="$HOME/Desktop/Open WhatsApp QR.webloc"
+cat > "$QR_SHORTCUT" <<'WEBLOC'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>URL</key>
+	<string>http://127.0.0.1:8765/qr</string>
+</dict>
+</plist>
+WEBLOC
+
 echo
-echo "(You can close this window now.)"
+echo "==========================================="
+echo "  SUCCESS - WhatsApp MCP is installed"
+echo "==========================================="
+echo
+echo "Next steps:"
+echo "  1. Close this window."
+echo "  2. Quit Cowork from its MENU-BAR icon and choose Quit (closing the"
+echo "     window or Cmd-Q may leave it running), then open it again."
+echo "  3. In the chat, say:  scan my WhatsApp"
+echo "  4. Double-click \"Open WhatsApp QR\" on your Desktop (or open"
+echo "     http://127.0.0.1:8765/qr) and scan it from your phone:"
+echo "     WhatsApp - Settings - Linked Devices - Link a Device."
+echo

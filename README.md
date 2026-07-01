@@ -25,25 +25,35 @@ Important: your sandbox CANNOT register the MCP or start it on Windows - only IN
 (which I double-click on Windows) can. So your job is to get the files into my folder and
 hand me the installer. Do this in order:
 
-1. Put the project into the folder I gave you access to in this chat (use THAT folder, don't
-   pick another, don't worry whether it's OneDrive). Get the SOURCE only - do NOT run
-   `npm install` and do NOT copy node_modules (the installer does that so the native binaries
-   are correct). Easiest: download the zip and extract it here -
+1. Download the SOURCE into the folder I gave you access to in this chat (use THAT folder,
+   don't pick another). Do NOT run `npm install` and do NOT copy node_modules - the installer
+   does that so the native binaries are correct. YOU download and extract the zip here (never
+   ask me to download it in a browser):
        https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip
-   (the contents land in a "whatsapp-local-mcp-main" folder). If a direct `git clone` into my
-   folder fails - some synced/mounted folders block git's file locking - that's expected: use
-   the zip, or clone into a temp dir and copy the files in (skip .git and node_modules).
+   (contents land in a "whatsapp-local-mcp-main" folder).
+   - If the download is blocked / hangs / is refused, that's my Cowork network-egress setting,
+     NOT a file problem (a `git clone` hits the same wall, so don't switch to clone). STOP and
+     tell me exactly: "Open Cowork Settings -> Allow network egress -> set the Domain allowlist
+     to 'All domains', then tell me to retry." Then download again. Never tell me to download
+     it myself.
+   - On Mac only: after extracting, run `chmod +x` on INSTALL.command and mac/*.command in that
+     folder (the zip strips the executable bit, or my double-click opens it in TextEdit).
 
 2. Do NOT use computer-use, and do NOT open Explorer/Finder or any app yourself. Just tell me,
    in plain text, the full path of that folder and to double-click INSTALL.bat (Windows) or
-   INSTALL.command (Mac) inside it. A window runs ~2-5 min - it checks Node (if Node is
-   missing it opens nodejs.org for me, and I re-run it after installing), installs
-   dependencies, and registers the MCP, then says SUCCESS. If Windows warns "protected your
-   PC", I click More info -> Run anyway; on Mac if it won't run, I right-click it -> Open.
+   INSTALL.command (Mac) inside it - the one sitting next to the "windows" and "mac" folders.
+   A window runs ~2-5 min: it checks Node (if Node is missing it opens nodejs.org for me and I
+   double-click the installer AGAIN after installing), installs dependencies, and registers the
+   MCP, then says SUCCESS.
+   - Windows: if a blue "Windows protected your PC" box appears showing only a "Don't run"
+     button, tell me to click the small "More info" link FIRST, then the "Run anyway" button.
+   - Mac: if it opens in TextEdit or says "unidentified developer", tell me to right-click the
+     file -> Open -> Open.
 
-3. Wait for me to say the installer finished. Then tell me to FULLY quit Cowork (tray /
-   menu-bar icon -> Quit, NOT just close the window) and reopen it. Approve the tools prompt
-   if one appears.
+3. Wait for me to say the installer finished. Then tell me to FULLY quit Cowork - tray icon
+   (Windows, near the clock; it may be hidden under the small "^" up-arrow) or menu-bar icon
+   (Mac) -> Quit, NOT just closing the window - and reopen it. Approve the tools prompt if one
+   appears.
 
 4. After I reopen and say "scan": call mcp__whatsapp__relink_whatsapp, then send me to the
    live page http://127.0.0.1:8765/qr (open it in your inline browser / preview, or tell me to
@@ -317,9 +327,9 @@ Most likely the image is more than ~14 days old and WhatsApp's CDN has garbage-c
 
 *(This section is written for Claude itself, in case the user pastes this README into a chat and asks Claude to install the project.)*
 
-Your sandbox CANNOT register the MCP (it can't write Cowork's protected global config, and Cowork does NOT read a project `.mcp.json`) and CANNOT start a Windows process. So you can't finish the install yourself - the last mile is the user double-clicking `INSTALL.bat` on Windows. Your job: get the source into their folder and hand off.
+Your sandbox CANNOT register the MCP (it can't write Cowork's protected global config, and Cowork does NOT read a project `.mcp.json`) and CANNOT start a host process. So you can't finish the install yourself - the last mile is the user double-clicking `INSTALL.bat` (Windows) or `INSTALL.command` (Mac). Your job: get the source into their folder and hand off.
 
-1. Put the SOURCE into the folder the user already granted this session - do NOT run `npm install` and do NOT copy `node_modules` (a sandbox-built one has the wrong native binaries; the installer builds them on the host). Prefer the zip (`https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip`); if a direct `git clone` into a synced/mounted folder fails on lock/unlink, that's expected - use the zip, or clone to a temp dir and copy the source in (skip `.git` and `node_modules`).
+1. Put the SOURCE into the folder the user already granted this session - do NOT run `npm install` and do NOT copy `node_modules` (a sandbox-built one has the wrong native binaries; the installer builds them on the host). Download the zip (`https://github.com/stevenpkm/whatsapp-local-mcp/archive/refs/heads/main.zip`) and extract it there - **you** do this, never tell the user to download it in a browser. If the download is blocked/hangs/refused, that is the Cowork **network-egress** setting (a `git clone` hits the same blocked host, so don't switch to clone) - STOP and tell them: "Open Cowork Settings → Allow network egress → set the Domain allowlist to 'All domains', then tell me to retry," then download again. **On macOS**, after extracting, `chmod +x` the `INSTALL.command` and `mac/*.command` files - the zip strips the Unix exec bit, so otherwise the user's double-click opens the script in TextEdit instead of running it.
 2. Do NOT use computer-use, and do NOT open Explorer/Finder or any app. Just give them, in plain text, the folder's full path and tell them to double-click `INSTALL.bat` (Windows) or `INSTALL.command` (Mac). The installer checks Node on the host (opening nodejs.org if it's missing or too old), runs `npm install`, registers the MCP, then says SUCCESS. Don't run `node --version` yourself - your sandbox's Node isn't the user's machine's Node, so it proves nothing; the installer is the real check. (If SmartScreen/Gatekeeper warns: Windows More info → Run anyway; Mac right-click → Open.)
 3. After they say it finished, tell them to **fully quit** Cowork (tray / menu-bar → Quit) and reopen. Approve the MCP-trust prompt if it appears.
 4. Once back, call `relink_whatsapp`, then send them to the live page `http://127.0.0.1:8765/qr` (open it in your inline browser/preview, or have them open the URL). Do NOT paste the QR as an image - the live page auto-refreshes when it expires and shows Connected once linked. They scan from WhatsApp → Settings → Linked Devices → Link a Device.

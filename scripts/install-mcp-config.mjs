@@ -94,7 +94,9 @@ try {
 console.log("");
 console.log("=========================================================");
 console.log(" Installed. Two more steps - both on your side:");
-console.log("  1. FULLY quit Cowork (tray icon -> Quit, not just close)");
+console.log(process.platform === "darwin"
+  ? "  1. FULLY quit Cowork (menu-bar icon -> Quit, not just close)"
+  : "  1. FULLY quit Cowork (tray icon -> Quit, not just close)");
 console.log("     and open it again.");
 console.log("  2. In the chat, say:  scan my WhatsApp");
 console.log("=========================================================");

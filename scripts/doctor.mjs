@@ -63,7 +63,9 @@ try {
 } catch {}
 if (!entry) {
   console.log(bad(`not registered in ${cfgPath}`));
-  console.log(info("run windows\\install.bat to register it"));
+  console.log(info(process.platform === "darwin"
+    ? "double-click INSTALL.command to register it"
+    : "double-click INSTALL.bat to register it"));
 } else {
   const target = entry.args?.[0] || "(none)";
   const exists = target !== "(none)" && fs.existsSync(target);
