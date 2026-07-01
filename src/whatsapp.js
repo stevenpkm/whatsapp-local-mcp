@@ -138,7 +138,12 @@ export async function createWhatsAppController({
       auth: state,
       logger,
       markOnlineOnConnect: false,
-      syncFullHistory: true,
+      // syncFullHistory MUST stay false: since ~2026-06-29 WhatsApp rejects a
+      // full-history-sync request at the handshake with 428 BEFORE any QR is
+      // issued (verified: syncFullHistory:true -> 428 every time; false -> QR
+      // every time; the browser string made no difference). We still get recent
+      // history + all live messages; older is fetched via backfill_history.
+      syncFullHistory: false,
       shouldSyncHistoryMessage: () => true,
       browser: Browsers.macOS("Cowork"),
       emitOwnEvents: true,
