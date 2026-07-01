@@ -1,7 +1,6 @@
 // Shared error-code vocabulary for every tool in this MCP.
 // Spec: every tool that fails returns { ok: false, code, error, ...context }
-// and the MCP layer (index.js) sets isError: true on the result. See the
-// improvement plan (MCP-improvement-plan.md §5.1) for the rationale.
+// and the MCP layer (index.js) sets isError: true on the result.
 
 export const ERROR_CODES = Object.freeze({
   // Transport / process state

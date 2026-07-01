@@ -89,17 +89,16 @@ Now try: *"summarize my WhatsApp from the last 12 hours"* 🎉
 <details>
 <summary><b>🛠️ Other ways to install (Claude Desktop · macOS / Linux)</b></summary>
 
-### Claude Desktop (no Cowork)
+### Claude Desktop (Windows)
 
 1. Install **Node.js 18+** from [nodejs.org](https://nodejs.org/).
-2. Open a terminal in a stable folder (e.g. `Documents`):
+2. Get the project into a stable folder (e.g. `Documents`) - clone it, or download the zip and unzip:
    ```
    git clone https://github.com/stevenpkm/whatsapp-local-mcp.git
-   cd whatsapp-local-mcp
    ```
-3. Double-click `windows\install.bat`. It runs `npm install` and writes a `whatsapp` entry into `%APPDATA%\Claude\claude_desktop_config.json` so Claude knows to launch the MCP server.
+3. **Double-click `INSTALL.bat`** in the project folder. It runs `npm install` and writes a `whatsapp` entry into `%APPDATA%\Claude\claude_desktop_config.json` so Claude knows to launch the MCP server.
 4. *(Optional)* For voice-note transcription, create `api-key.txt` in the repo root and paste your OpenAI key (one line, no quotes).
-5. Quit and reopen Claude Desktop.
+5. **Fully quit** Claude Desktop (tray icon → Quit, not just close the window) and reopen it.
 6. In chat, type **`scan my WhatsApp`** and scan the QR on your phone.
 
 ### macOS
@@ -111,8 +110,8 @@ The Node code is cross-platform, and macOS has its own one-click installer.
 3. **Double-click `INSTALL.command`** in the project folder. It runs `npm install` and registers the MCP into `~/Library/Application Support/Claude/claude_desktop_config.json` (auto-detected - no manual editing).
    - If macOS blocks it ("unidentified developer", or it opens in a text editor instead of running): open **Terminal** (Spotlight → type *Terminal*), then paste `bash "` , drag `INSTALL.command` onto the window, type `"`, and press Enter.
 4. *(Optional)* For voice transcription, put your OpenAI key in `api-key.txt` in the project root.
-5. **Fully quit** Cowork / Claude Desktop (Cmd-Q) and reopen.
-6. In chat, type **`scan my WhatsApp`** and scan the QR (the live page is `http://127.0.0.1:8765/qr`).
+5. **Fully quit** Cowork / Claude Desktop - click its menu-bar icon and choose Quit (Cmd-Q from the window may leave it running in the menu bar), then reopen.
+6. In chat, type **`scan my WhatsApp`** and scan the QR (the status page is `http://127.0.0.1:8765/`, or the QR page `http://127.0.0.1:8765/qr`).
 
 The bridge auto-starts when Cowork launches the MCP and survives Cowork restarts (detached), same as Windows. `mac/restart-bridge.command` restarts it if needed; `mac/reset.command` wipes auth + cache.
 
@@ -251,29 +250,40 @@ To enable voice-note transcription, get an OpenAI API key at [platform.openai.co
 <summary><b>📁 File layout</b></summary>
 
 ```
-whatsapp-mcp/
+whatsapp-local-mcp/
   README.md                          <- you are here
   LICENSE                            <- MIT
   .gitignore                         <- excludes auth/, data/, api-key.txt
+  .gitattributes                     <- keeps .command LF, .bat CRLF
   package.json
+  INSTALL.bat                        <- Windows: double-click to install
+  INSTALL.command                    <- macOS: double-click to install
 
   src/
-    bridge.js                        <- always-on WhatsApp connection
+    bridge.js                        <- always-on WhatsApp connection + status dashboard
     index.js                         <- MCP server (thin HTTP client)
-    whatsapp.js                      <- Baileys controller + watchdog
+    whatsapp.js                      <- Baileys controller + reconnect/watchdog
     store.js                         <- message cache (with .backup)
-    transcribe.js                    <- OpenAI Whisper client
+    media-paths.js                   <- filename/folder helpers for saved media
+    errors.js                        <- shared error-code envelope
+    transcribe.js                    <- OpenAI Whisper client (voice notes)
 
   scripts/
-    install-mcp-config.mjs           <- writes claude_desktop_config.json
+    install-mcp-config.mjs           <- registers the MCP in the Claude/Cowork config
+    doctor.mjs                       <- one-shot health check (node / registration / bridge)
 
   windows/                           <- Windows helper .bat files
-    install.bat                      <- first-time install
-    restart-bridge.bat               <- restart bridge after code change
+    install.bat                      <- runs npm install + registers the MCP
+    restart-bridge.bat               <- restart the bridge
     reset.bat                        <- nuclear: wipe auth + cache
 
+  mac/                               <- macOS helper .command files
+    install.command                  <- runs npm install + registers the MCP
+    restart-bridge.command           <- restart the bridge
+    reset.command                    <- nuclear: wipe auth + cache
+
   auth/        (gitignored)          <- WhatsApp credentials. DON'T SHARE.
-  data/        (gitignored)          <- local message cache + brief.json
+  data/        (gitignored)          <- local message cache + brief.json + bridge.log
   api-key.txt  (gitignored)          <- OpenAI key for voice transcription
 ```
 

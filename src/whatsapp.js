@@ -58,8 +58,23 @@ export async function createWhatsAppController({
   let downSince = 0;       // when the current disconnected streak began (0 = connected)
   let needsRelink = false; // true only after a genuine 401 logout - user must re-scan
   let gaveUp = false;      // true after we stop auto-reconnecting on a very long outage
+  let reconnectTimer = null;  // THE single pending reconnect (never more than one)
+  let stableOpenTimer = null; // delays the attempts/downSince reset until the link holds
+  let consecutive515 = 0;     // bounds the 515 (restartRequired) fast-retry path
 
   function bumpActivity() { lastActivityAt = Date.now(); }
+
+  const GIVE_UP_MS = 24 * 60 * 60 * 1000;
+  function backoffMs() { return Math.min(15 * 60_000, 2000 * Math.pow(2, Math.min(attempts, 10))); }
+  // Exactly one reconnect timer, ever. Cancelling any pending one first is what
+  // stops the watchdog / a manual reconnect / a stale close from stacking into
+  // multiple live sockets - each of which would keepalive + reconnect on its
+  // own, i.e. the exact reconnect storm that gets an unofficial number banned.
+  function cancelReconnect() { if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; } }
+  function scheduleReconnect(delay) {
+    cancelReconnect();
+    reconnectTimer = setTimeout(() => { reconnectTimer = null; if (!stopped) connect(); }, delay);
+  }
 
   // Transcription queue (unchanged).
   const TRANSCRIBE_RECENT_HOURS = Number(process.env.WHATSAPP_TRANSCRIBE_HOURS) || 36;
@@ -130,6 +145,8 @@ export async function createWhatsAppController({
 
   function connect() {
     if (stopped) return null;
+    cancelReconnect();   // a pending timer must not fire a second connect()
+    tearDownSocket();    // drop any previous socket so only one is ever live
     attempts++;
     bumpActivity();
 
@@ -165,14 +182,20 @@ export async function createWhatsAppController({
       if (qr && onQR) { latestQR = qr; latestQRAt = Date.now(); onQR(qr); }
 
       if (connection === "open") {
-        attempts = 0;
         isConnected = true;
         latestQR = null;
         lastError = null;
-        downSince = 0;
         needsRelink = false;
         gaveUp = false;
+        consecutive515 = 0;
         if (onReady) onReady(sock);
+        // Reset the backoff/outage counters only after the link has HELD for a
+        // bit. A flapping session (open, drop, open, drop) would otherwise reset
+        // attempts on every open and the backoff would never climb - a slow-burn
+        // storm. If it drops within 60s the close handler cancels this timer and
+        // the counters keep growing instead.
+        if (stableOpenTimer) clearTimeout(stableOpenTimer);
+        stableOpenTimer = setTimeout(() => { attempts = 0; downSince = 0; stableOpenTimer = null; }, 60_000);
         // Background sweep: for any group still missing a name, fetch its
         // metadata from WhatsApp. Sequential with small delay to be polite.
         setTimeout(() => { fillMissingGroupNames().catch(() => {}); }, 3000);
@@ -180,6 +203,7 @@ export async function createWhatsAppController({
 
       if (connection === "close") {
         isConnected = false;
+        if (stableOpenTimer) { clearTimeout(stableOpenTimer); stableOpenTimer = null; }
         const code = lastDisconnect?.error?.output?.statusCode;
         lastCloseCode = code;
         lastError = lastDisconnect?.error || null;
@@ -188,24 +212,31 @@ export async function createWhatsAppController({
 
         if (stopped) return;
         if (loggedOut) {
-          // The ONLY case that genuinely needs a re-scan. Every other close
-          // reconnects with the saved credentials (no QR), so a normal drop
-          // never forces the user to scan again.
+          // The ONLY close that genuinely needs a re-scan. Drop the dead socket
+          // and stop; forceResync/relink won't then reuse the now-invalid creds.
+          // Every other close reconnects with the saved credentials (no QR).
           stopped = true;
           needsRelink = true;
+          tearDownSocket();
           console.error("[whatsapp] logged out (401) - a fresh QR scan is needed. Say 'scan my WhatsApp'.");
           return;
         }
 
         if (!downSince) downSince = Date.now();
 
-        // Auto-recover from outages up to ~24h (overnight, router reboot,
-        // WhatsApp maintenance, a temporary rate-limit) WITHOUT a re-scan, using
-        // the saved credentials. But do NOT dial a truly-dead session forever -
-        // a reconnect storm is what gets an unofficial-client number flagged.
-        // After a full day of continuous failure, stop and surface it; a manual
-        // reconnect / relink / restart resets this.
-        if (code !== 515 && Date.now() - downSince > 24 * 60 * 60 * 1000) {
+        // 515 (restartRequired) is normal ONCE right after pairing -> fast retry.
+        // But a PERSISTENT 515 loop (half-broken session) must fall back to normal
+        // backoff + the give-up ceiling, or it becomes a 2/sec reconnect storm.
+        const is515 = code === 515;
+        consecutive515 = is515 ? consecutive515 + 1 : 0;
+        const fast515 = is515 && consecutive515 <= 3;
+
+        // Auto-recover from outages up to ~24h (overnight, router reboot, WhatsApp
+        // maintenance, a temporary rate-limit) WITHOUT a re-scan, using the saved
+        // credentials. But do NOT dial a truly-dead session forever - a reconnect
+        // storm is what gets an unofficial number flagged. After ~24h of continuous
+        // failure, stop and surface it; a manual reconnect / relink / restart resets.
+        if (!fast515 && Date.now() - downSince > GIVE_UP_MS) {
           stopped = true;
           gaveUp = true;
           lastError = new Error(`gave up auto-reconnecting after ~24h of failures (last code ${code}); reconnect or relink to try again`);
@@ -213,14 +244,9 @@ export async function createWhatsAppController({
           return;
         }
 
-        // Gentle exponential backoff, capped at 15 min. Fast recovery from brief
-        // blips, but never a storm: rapid repeated reconnects are what trigger
-        // WhatsApp's rate-limit (which then turns a recoverable drop into a stuck
-        // "428, no QR" wall). 515 (restartRequired) is a normal post-pair signal.
-        const delay = code === 515
-          ? 500
-          : Math.min(15 * 60_000, 2000 * Math.pow(2, Math.min(attempts, 10)));
-        setTimeout(() => { if (!stopped) connect(); }, delay);
+        // Gentle backoff (never a storm). scheduleReconnect cancels any pending
+        // timer first, so only one reconnect is ever in flight.
+        scheduleReconnect(fast515 ? 500 : backoffMs());
       }
     });
 
@@ -301,30 +327,47 @@ export async function createWhatsAppController({
   // Watchdog: if no socket activity for STALE_THRESHOLD_MS, force a reconnect.
   function startWatchdog() {
     if (watchdogTimer) return;
-    watchdogTimer = setInterval(async () => {
+    watchdogTimer = setInterval(() => {
       if (stopped) return;
+      // Self-heal: if we somehow have no live socket and nothing scheduled
+      // (e.g. makeWASocket threw), re-arm a reconnect instead of hanging forever.
+      if (!currentSock && !reconnectTimer) {
+        console.error("[whatsapp] no live socket and no reconnect pending - re-arming");
+        scheduleReconnect(2000);
+        return;
+      }
       const idle = Date.now() - lastActivityAt;
       if (idle > STALE_THRESHOLD_MS && currentSock) {
         console.error(`[whatsapp] STALE: no activity for ${Math.round(idle/1000)}s - tearing down zombie socket and reconnecting`);
         isConnected = false;
         lastCloseCode = "stale";
-        try { await tearDownSocket(); } catch {}
-        attempts = 0;
-        bumpActivity(); // reset clock so we don't immediately re-trip
-        try { connect(); } catch (e) {
-          console.error("[whatsapp] reconnect after stale failed:", e?.message || e);
+        if (!downSince) downSince = Date.now(); // so the 24h give-up fires on a zombie loop too
+        if (Date.now() - downSince > GIVE_UP_MS) {
+          stopped = true; gaveUp = true;
+          console.error("[whatsapp] gave up after ~24h of stale reconnects; stopping to protect the number.");
+          return;
         }
+        tearDownSocket();
+        bumpActivity(); // reset the idle clock so we don't immediately re-trip
+        // Share the backoff curve with the close path - do NOT reset attempts,
+        // or a dead network reconnects every ~3 min forever (a slow storm).
+        scheduleReconnect(backoffMs());
       }
     }, WATCHDOG_CHECK_MS);
     if (watchdogTimer.unref) watchdogTimer.unref();
   }
 
   async function relink({ waitMs = 25_000 } = {}) {
+    cancelReconnect();
     stopped = true;
     await tearDownSocket();
     isConnected = false;
     latestQR = null;
     latestQRAt = 0;
+    downSince = 0;
+    gaveUp = false;
+    needsRelink = false;
+    consecutive515 = 0;
 
     const deleted = deleteAuthFiles();
     await reloadAuthState();
@@ -353,13 +396,19 @@ export async function createWhatsAppController({
   }
 
   async function forceResync() {
-    if (!currentSock && stopped) {
-      return { ok: false, error: "stopped (logged out) - call relink first" };
+    // After a 401 the saved creds are dead - reconnecting just 401s again. Send
+    // the user to relink instead of faking a "reconnecting" success.
+    if (needsRelink) {
+      return { ok: false, error: "logged out - a fresh QR scan is needed; call relink first" };
     }
+    cancelReconnect();
+    stopped = false;
+    gaveUp = false;      // let a manual reconnect revive a bridge that had given up
+    downSince = 0;
+    lastError = null;
+    attempts = 0;
     isConnected = false;
     await tearDownSocket();
-    attempts = 0;
-    stopped = false;
     bumpActivity();
     connect();
     return { ok: true, message: "reconnecting" };

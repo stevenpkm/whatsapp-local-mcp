@@ -216,10 +216,17 @@ export class Store {
   }
 
   _save() {
-    let toSave = this.messages;
-    if (toSave.length > MAX_MESSAGES) {
-      toSave = [...toSave].sort((a, b) => b.timestamp - a.timestamp).slice(0, MAX_MESSAGES);
+    if (this.messages.length > MAX_MESSAGES) {
+      // Cap the IN-MEMORY cache too (not just the on-disk copy) or a long-lived
+      // bridge grows unbounded. Keep the newest MAX_MESSAGES + rebuild the index.
+      this.messages = [...this.messages].sort((a, b) => b.timestamp - a.timestamp).slice(0, MAX_MESSAGES);
+      this._idIndex = new Map();
+      for (let i = 0; i < this.messages.length; i++) {
+        const m = this.messages[i];
+        if (m?.chatId && m?.id) this._idIndex.set(`${m.chatId}|${m.id}`, i);
+      }
     }
+    const toSave = this.messages;
     const json = JSON.stringify({
       messages: toSave,
       chats: Array.from(this.chats.entries()),

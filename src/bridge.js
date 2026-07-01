@@ -27,10 +27,8 @@ import { createWhatsAppController } from "./whatsapp.js";
 import { transcribeAudio, loadApiKey } from "./transcribe.js";
 import { classifyError, ok as okEnvelope, fail } from "./errors.js";
 import { defaultFilename, resolveFolder, validateFilename, ensureFolder, extFor } from "./media-paths.js";
-// Note: we used to import describeImage from ./vision.js to enrich images
-// via OpenAI gpt-4o-mini Vision. That's now disabled - image analysis is
-// done by Claude (via the get_image MCP tool, using the Cowork subscription
-// instead of a separate OpenAI bill). vision.js is kept around but unused.
+// Image analysis is done by Claude via the get_image MCP tool (using the Claude
+// subscription), not by a separate OpenAI Vision call.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
@@ -642,9 +640,10 @@ const server = http.createServer(async (req, res) => {
       }
       const errorsArr = Object.entries(errors).map(([code, count]) => ({ code, count }));
 
-      // Determine the folder where files landed (resolve once).
+      // Determine the folder where files landed (resolve once). Fall back to
+      // today's folder (not the window-start date) when nothing was saved.
       const folderUsed = items.find(i => i.ok)?.folder
-        || resolveFolder({ projectRoot, folder, epochMs: cutoff }).folder
+        || resolveFolder({ projectRoot, folder, epochMs: Date.now() }).folder
         || null;
 
       return sendJson(res, 200, okEnvelope({

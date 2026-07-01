@@ -1,5 +1,4 @@
-// Filename + folder helpers for saving media to disk.
-// See improvement plan §4.5 for the convention:
+// Filename + folder helpers for saving media to disk. Convention:
 //   <YYYY-MM-DDTHH-mm-ss>__<chat-slug>__<sender-slug>__<msgId-suffix>.<ext>
 
 import fs from "node:fs";
