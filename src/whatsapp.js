@@ -178,6 +178,17 @@ export async function createWhatsAppController({
         if (stopped) return;
         if (loggedOut) { stopped = true; return; }
 
+        // Give up after a long run of failures instead of dialing WhatsApp
+        // forever - a reconnect storm is what gets an unofficial-client number
+        // flagged. ~20 attempts with the backoff below is roughly an hour of
+        // trying. A manual restart / relink / force_resync resets this.
+        if (code !== 515 && attempts >= 20) {
+          stopped = true;
+          lastError = new Error(`gave up auto-reconnecting after ${attempts} attempts (last code ${code}); restart the bridge or relink to try again`);
+          console.error(`[whatsapp] gave up after ${attempts} reconnects (code=${code}); stopping to protect the number. Relink or restart-bridge to retry.`);
+          return;
+        }
+
         // Exponential backoff, capped at 5 min. Hammering WhatsApp on 428 (the
         // old min(30s) cap meant retrying every 30s forever) triggers a
         // temporary rate-limit that turns a recoverable drop into a stuck
