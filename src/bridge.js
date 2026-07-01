@@ -127,6 +127,18 @@ function statusBlock() {
   return { ...controller.getStatus(), cache, bootError };
 }
 
+// Debounce manual reconnect/relink so a user clicking the dashboard button
+// repeatedly can't hammer WhatsApp into a rate-limit / ban. Returns seconds to
+// wait (0 = allowed, and records the attempt).
+let lastManualReconnectAt = 0;
+function reconnectCooldownSec() {
+  const COOLDOWN = 15_000;
+  const since = Date.now() - lastManualReconnectAt;
+  if (since < COOLDOWN) return Math.ceil((COOLDOWN - since) / 1000);
+  lastManualReconnectAt = Date.now();
+  return 0;
+}
+
 // ---------- enrich-window: download media + transcribe / describe ----------
 async function streamToBuffer(stream) {
   const chunks = [];
@@ -385,6 +397,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "POST /relink") {
       if (!controller) return sendJson(res, 500, fail("bridge_unhealthy", "controller not initialized"));
+      const cd = reconnectCooldownSec();
+      if (cd) return sendJson(res, 429, { ok: false, error: `wait ${cd}s before reconnecting again - rapid reconnects can get WhatsApp to block the number`, retryAfterSec: cd });
       const body = await readJson(req);
       const result = await controller.relink({ waitMs: body?.waitMs || 25000 });
       return sendJson(res, 200, { ...result, status: statusBlock() });
@@ -397,6 +411,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "POST /force-resync") {
       if (!controller) return sendJson(res, 500, fail("bridge_unhealthy", "controller not initialized"));
+      const cd = reconnectCooldownSec();
+      if (cd) return sendJson(res, 429, { ok: false, error: `wait ${cd}s before reconnecting again - rapid reconnects can get WhatsApp to block the number`, retryAfterSec: cd });
       const result = await controller.forceResync();
       return sendJson(res, 200, { ...result, status: statusBlock() });
     }
@@ -734,6 +750,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       return res.end(QR_PAGE_HTML);
     }
+    if (route === "GET /" || route === "GET /dashboard") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      return res.end(DASHBOARD_HTML);
+    }
 
     res.writeHead(404, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: "not found" }));
@@ -820,3 +840,90 @@ const QR_PAGE_HTML = `<!doctype html>
 </script>
 </body></html>`;
 
+
+// ---------- status / refresh / diagnose dashboard (served at / ) ----------
+const DASHBOARD_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>WhatsApp connection</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{color-scheme:light}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fafafa;color:#1a1a1a;margin:0;display:flex;justify-content:center;padding:32px 16px}
+  .card{background:#fff;max-width:460px;width:100%;border-radius:14px;box-shadow:0 2px 24px rgba(0,0,0,.06);padding:26px 26px 22px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{color:#999;font-size:12px;margin:0 0 20px}
+  .badge{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;padding:11px 14px;border-radius:10px}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none}
+  .ok{background:#f0fdf4;color:#15803d} .ok .dot{background:#16a34a}
+  .warn{background:#fffbeb;color:#b45309} .warn .dot{background:#d97706}
+  .bad{background:#fef2f2;color:#b91c1c} .bad .dot{background:#dc2626}
+  .muted{background:#f3f4f6;color:#6b7280} .muted .dot{background:#9ca3af}
+  .meta{font-size:13px;color:#555;margin:13px 2px 18px;line-height:1.6}
+  .btns{display:flex;gap:10px}
+  button{flex:1;font:inherit;font-weight:600;font-size:14px;padding:11px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#1a1a1a;cursor:pointer}
+  button.primary{background:#111;color:#fff;border-color:#111}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .note{font-size:11.5px;color:#b45309;margin:10px 2px 0;min-height:14px}
+  #qrwrap{display:none;margin-top:18px;text-align:center}
+  #qr{width:256px;height:256px;margin:0 auto;display:flex;align-items:center;justify-content:center}
+  #qr svg{width:100%;height:100%}
+  .hint{font-size:12px;color:#777;margin-top:12px;line-height:1.6}
+  details{margin-top:18px;font-size:12px;color:#666}
+  pre{background:#f6f8fa;padding:10px;border-radius:8px;overflow:auto;font-size:11px;line-height:1.4}
+</style></head>
+<body><div class="card">
+  <h1>WhatsApp connection</h1>
+  <div class="sub">Runs 100% on this computer</div>
+  <div id="badge" class="badge muted"><span class="dot"></span><span id="btext">Checking...</span></div>
+  <div class="meta" id="meta"></div>
+  <div class="btns">
+    <button id="reconnect" onclick="act('/force-resync','reconnect')">Reconnect</button>
+    <button id="relink" class="primary" onclick="startRelink()">Re-link (new QR)</button>
+  </div>
+  <div class="note" id="note"></div>
+  <div id="qrwrap">
+    <div id="qr"><div>Loading QR...</div></div>
+    <div class="hint">Phone: WhatsApp &rarr; Settings &rarr; Linked Devices &rarr; Link a Device &rarr; scan this. Auto-refreshes; shows Connected when done.</div>
+  </div>
+  <details><summary>Details (diagnosis)</summary><pre id="details">...</pre></details>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+  var relinkMode=false, curQR=null;
+  function $id(x){return document.getElementById(x);}
+  var CLS={connected:'ok',stale:'warn',reconnecting:'warn',waiting_for_scan:'warn',needs_relink:'bad',gave_up:'bad'};
+  var TXT={connected:'Connected',stale:'Connected (syncing)',reconnecting:'Reconnecting...',waiting_for_scan:'Waiting for QR scan',needs_relink:'Needs re-scan',gave_up:'Stopped - click Reconnect'};
+  function fmt(s){if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'m';return Math.round(s/3600)+'h';}
+  function startRelink(){relinkMode=true;$id('qrwrap').style.display='block';act('/relink','relink');}
+  function act(path,btn){
+    var b=$id(btn); b.disabled=true;
+    fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:'{}'})
+      .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
+      .then(function(o){
+        if(o.s===429&&o.j&&o.j.retryAfterSec){$id('note').textContent='Please wait '+o.j.retryAfterSec+'s - clicking too fast can get WhatsApp to block your number.';}
+        else{$id('note').textContent='';}
+      }).catch(function(){});
+    setTimeout(function(){b.disabled=false;},15000);
+  }
+  function poll(){
+    fetch('/status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(s){
+      var h=s.health||(s.connected?'connected':'reconnecting');
+      $id('badge').className='badge '+(CLS[h]||'muted');
+      $id('btext').textContent=TXT[h]||h;
+      var c=s.cache||{};
+      var m=(c.messages||0).toLocaleString()+' messages, '+(c.chats||0).toLocaleString()+' chats cached';
+      if(!s.connected&&s.downForSec)m+=' - offline '+fmt(s.downForSec);
+      if(s.connected&&s.idleSec!=null)m+=' - last activity '+s.idleSec+'s ago';
+      $id('meta').textContent=m;
+      $id('details').textContent=JSON.stringify({health:h,connected:s.connected,lastCloseCode:s.lastCloseCode,attempts:s.attempts,needsRelink:s.needsRelink,gaveUp:s.gaveUp,transcription:s.transcription},null,2);
+      if(relinkMode||h==='waiting_for_scan'){
+        fetch('/qr.json',{cache:'no-store'}).then(function(r){return r.json();}).then(function(q){
+          if(q.connected){relinkMode=false;$id('qrwrap').style.display='none';}
+          else if(q.qr&&q.qr!==curQR){curQR=q.qr;$id('qrwrap').style.display='block';var g=qrcode(0,'M');g.addData(q.qr);g.make();$id('qr').innerHTML=g.createSvgTag(6,0);}
+        }).catch(function(){});
+      } else if(s.connected){$id('qrwrap').style.display='none';}
+    }).catch(function(){}).then(function(){setTimeout(poll,3000);});
+  }
+  poll();
+</script>
+</body></html>`;

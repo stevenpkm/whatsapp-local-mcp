@@ -55,6 +55,9 @@ export async function createWhatsAppController({
   let lastHistoryBatchAt = 0;
   let lastActivityAt = Date.now();
   let watchdogTimer = null;
+  let downSince = 0;       // when the current disconnected streak began (0 = connected)
+  let needsRelink = false; // true only after a genuine 401 logout - user must re-scan
+  let gaveUp = false;      // true after we stop auto-reconnecting on a very long outage
 
   function bumpActivity() { lastActivityAt = Date.now(); }
 
@@ -161,6 +164,9 @@ export async function createWhatsAppController({
         isConnected = true;
         latestQR = null;
         lastError = null;
+        downSince = 0;
+        needsRelink = false;
+        gaveUp = false;
         if (onReady) onReady(sock);
         // Background sweep: for any group still missing a name, fetch its
         // metadata from WhatsApp. Sequential with small delay to be polite.
@@ -176,27 +182,39 @@ export async function createWhatsAppController({
         if (onClosed) onClosed({ loggedOut, code });
 
         if (stopped) return;
-        if (loggedOut) { stopped = true; return; }
-
-        // Give up after a long run of failures instead of dialing WhatsApp
-        // forever - a reconnect storm is what gets an unofficial-client number
-        // flagged. ~20 attempts with the backoff below is roughly an hour of
-        // trying. A manual restart / relink / force_resync resets this.
-        if (code !== 515 && attempts >= 20) {
+        if (loggedOut) {
+          // The ONLY case that genuinely needs a re-scan. Every other close
+          // reconnects with the saved credentials (no QR), so a normal drop
+          // never forces the user to scan again.
           stopped = true;
-          lastError = new Error(`gave up auto-reconnecting after ${attempts} attempts (last code ${code}); restart the bridge or relink to try again`);
-          console.error(`[whatsapp] gave up after ${attempts} reconnects (code=${code}); stopping to protect the number. Relink or restart-bridge to retry.`);
+          needsRelink = true;
+          console.error("[whatsapp] logged out (401) - a fresh QR scan is needed. Say 'scan my WhatsApp'.");
           return;
         }
 
-        // Exponential backoff, capped at 5 min. Hammering WhatsApp on 428 (the
-        // old min(30s) cap meant retrying every 30s forever) triggers a
-        // temporary rate-limit that turns a recoverable drop into a stuck
-        // "428, no QR" loop. 515 (restartRequired) is a normal post-pair
-        // signal, so reconnect fast for that one only.
+        if (!downSince) downSince = Date.now();
+
+        // Auto-recover from outages up to ~24h (overnight, router reboot,
+        // WhatsApp maintenance, a temporary rate-limit) WITHOUT a re-scan, using
+        // the saved credentials. But do NOT dial a truly-dead session forever -
+        // a reconnect storm is what gets an unofficial-client number flagged.
+        // After a full day of continuous failure, stop and surface it; a manual
+        // reconnect / relink / restart resets this.
+        if (code !== 515 && Date.now() - downSince > 24 * 60 * 60 * 1000) {
+          stopped = true;
+          gaveUp = true;
+          lastError = new Error(`gave up auto-reconnecting after ~24h of failures (last code ${code}); reconnect or relink to try again`);
+          console.error(`[whatsapp] gave up after ~24h of reconnect failures (code=${code}); stopping to protect the number.`);
+          return;
+        }
+
+        // Gentle exponential backoff, capped at 15 min. Fast recovery from brief
+        // blips, but never a storm: rapid repeated reconnects are what trigger
+        // WhatsApp's rate-limit (which then turns a recoverable drop into a stuck
+        // "428, no QR" wall). 515 (restartRequired) is a normal post-pair signal.
         const delay = code === 515
           ? 500
-          : Math.min(5 * 60_000, 2000 * Math.pow(2, Math.min(attempts, 8)));
+          : Math.min(15 * 60_000, 2000 * Math.pow(2, Math.min(attempts, 10)));
         setTimeout(() => { if (!stopped) connect(); }, delay);
       }
     });
@@ -389,8 +407,20 @@ export async function createWhatsAppController({
     // Heuristic: even if our flag says connected, treat as warning if no
     // activity has happened in over 90s. Watchdog will hard-fix at 3 min.
     const looksStale = isConnected && idleSec > 90;
+    // One clean state for the dashboard + Claude to show, instead of making
+    // them read five separate flags.
+    const health = isConnected
+      ? (looksStale ? "stale" : "connected")
+      : needsRelink ? "needs_relink"
+      : gaveUp ? "gave_up"
+      : latestQR ? "waiting_for_scan"
+      : "reconnecting";
     return {
       connected: isConnected,
+      health,
+      needsRelink,
+      gaveUp,
+      downForSec: downSince ? Math.round((Date.now() - downSince) / 1000) : 0,
       looksStale,
       idleSec,
       hasQR: !!latestQR,
