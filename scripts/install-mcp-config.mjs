@@ -20,7 +20,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
 const indexPath = path.join(projectRoot, "src", "index.js");
 
-const SERVER_ENTRY = { command: "node", args: [indexPath] };
+// Register the ABSOLUTE path to this machine's node, NOT a bare "node".
+// Claude Desktop / Cowork spawns the MCP server without a shell and without the
+// user's full PATH, so a bare "node" silently fails to launch on many Windows
+// machines even when `node` works in a terminal - the #1 "installed fine but
+// Claude can't detect the bridge" cause (Mac is more forgiving). process.execPath
+// is the node that ran this installer, so it's guaranteed correct on this machine.
+const SERVER_ENTRY = { command: process.execPath, args: [indexPath] };
 
 // ---- locate the global config for this OS -------------------------------
 function globalConfigPath() {
@@ -69,7 +75,7 @@ function mergeIntoConfig(configPath) {
 
 // ---- run ----------------------------------------------------------------
 console.log("Registering the WhatsApp MCP...");
-console.log("  server entry: node", indexPath);
+console.log("  server entry:", process.execPath, indexPath);
 console.log("");
 
 const configPath = globalConfigPath();
