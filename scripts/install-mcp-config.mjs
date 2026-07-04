@@ -97,6 +97,23 @@ try {
   process.exit(1);
 }
 
+// Verify the entry actually landed where Cowork reads it - never claim success blind.
+try {
+  const check = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const got = check?.mcpServers?.whatsapp;
+  if (!got || got.args?.[0] !== indexPath) throw new Error("whatsapp entry missing or wrong after write");
+  console.log("");
+  console.log("VERIFIED - this is the exact file Cowork loads on launch:");
+  console.log("     " + configPath);
+  console.log("     whatsapp -> " + got.command);
+} catch (e) {
+  console.error("");
+  console.error("Wrote the file but the whatsapp entry did NOT verify in:");
+  console.error("     " + configPath);
+  console.error("Reason: " + e.message);
+  process.exit(1);
+}
+
 console.log("");
 console.log("=========================================================");
 console.log(" Installed. Two more steps - both on your side:");
