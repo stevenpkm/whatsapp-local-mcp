@@ -29,11 +29,59 @@ const indexPath = path.join(projectRoot, "src", "index.js");
 const SERVER_ENTRY = { command: process.execPath, args: [indexPath] };
 
 // ---- locate the global config for this OS -------------------------------
-function globalConfigPath() {
-  if (process.platform === "win32") {
-    const appdata = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
-    return path.join(appdata, "Claude", "claude_desktop_config.json");
+// Bounded recursive search for claude_desktop_config.json under a directory.
+function findConfigUnder(dir, maxDepth = 6) {
+  let hit = null;
+  (function walk(d, depth) {
+    if (hit || depth > maxDepth) return;
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (hit) return;
+      const full = path.join(d, e.name);
+      if (e.isFile()) { if (e.name === "claude_desktop_config.json") hit = full; }
+      else if (e.isDirectory()) walk(full, depth + 1);
+    }
+  })(dir, 0);
+  return hit;
+}
+
+// Windows: a Microsoft Store (MSIX) install of Claude redirects its AppData into
+// a package container, so the config is NOT at %APPDATA%\Claude - it lives under
+// %LOCALAPPDATA%\Packages\<Claude pkg>\LocalCache\Roaming\Claude\... Writing to the
+// plain %APPDATA% path there means Claude never sees the entry ("can't detect the
+// bridge"). Detect the packaged layout and target the real file.
+function windowsConfigPath() {
+  const appdata = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+  const standard = path.join(appdata, "Claude", "claude_desktop_config.json");
+  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+  const packagesDir = path.join(localAppData, "Packages");
+
+  let storePkg = null;
+  try {
+    for (const name of fs.readdirSync(packagesDir)) {
+      if (/claude|anthropic/i.test(name)) { storePkg = path.join(packagesDir, name); break; }
+    }
+  } catch {}
+
+  // 1. An existing config inside the Store package wins - that's the file Store Claude loads.
+  if (storePkg) {
+    const likely = path.join(storePkg, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json");
+    if (fs.existsSync(likely)) return likely;
+    const found = findConfigUnder(storePkg);
+    if (found) return found;
   }
+  // 2. Otherwise an existing standard config (the .exe / .msi install).
+  if (fs.existsSync(standard)) return standard;
+  // 3. Store package present but no config yet (Claude not launched once): target its
+  //    redirected Roaming path so the next launch reads it.
+  if (storePkg) return path.join(storePkg, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json");
+  // 4. Fresh .exe-style default.
+  return standard;
+}
+
+function globalConfigPath() {
+  if (process.platform === "win32") return windowsConfigPath();
   if (process.platform === "darwin") {
     return path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json");
   }
