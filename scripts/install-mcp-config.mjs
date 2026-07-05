@@ -46,46 +46,35 @@ function findConfigUnder(dir, maxDepth = 6) {
   return hit;
 }
 
-// Windows: a Microsoft Store (MSIX) install of Claude redirects its AppData into
-// a package container, so the config is NOT at %APPDATA%\Claude - it lives under
-// %LOCALAPPDATA%\Packages\<Claude pkg>\LocalCache\Roaming\Claude\... Writing to the
-// plain %APPDATA% path there means Claude never sees the entry ("can't detect the
-// bridge"). Detect the packaged layout and target the real file.
-function windowsConfigPath() {
-  const appdata = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
-  const standard = path.join(appdata, "Claude", "claude_desktop_config.json");
-  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
-  const packagesDir = path.join(localAppData, "Packages");
+// Windows: the config path is a MOVING TARGET. Both the official claude.ai/download
+// installer AND the Microsoft Store build are now MSIX-packaged, so Claude reads its
+// config from a VIRTUALIZED path %LOCALAPPDATA%\Packages\<Claude pkg>\LocalCache\
+// Roaming\Claude\claude_desktop_config.json - while the in-app "Edit Config" button
+// and %APPDATA%\Claude\ point at a DIFFERENT file (users edit one, the app reads the
+// other -> "MCP not detected", no error). Machines upgraded from an older non-MSIX
+// build still use %APPDATA%\Claude. We can't reliably tell which this machine reads,
+// so we WRITE TO ALL candidate files (harmless duplicates) and let Claude pick.
+// See anthropics/claude-code#26073 and multiple community write-ups (2026).
+function configTargets() {
+  if (process.platform === "darwin")
+    return [path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json")];
+  if (process.platform !== "win32")
+    return [path.join(os.homedir(), ".config", "Claude", "claude_desktop_config.json")];
 
-  let storePkg = null;
+  const appdata = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
+  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+  const targets = [path.join(appdata, "Claude", "claude_desktop_config.json")];
+  const packagesDir = path.join(localAppData, "Packages");
   try {
     for (const name of fs.readdirSync(packagesDir)) {
-      if (/claude|anthropic/i.test(name)) { storePkg = path.join(packagesDir, name); break; }
+      if (!/claude|anthropic/i.test(name)) continue;
+      const pkg = path.join(packagesDir, name);
+      const found = findConfigUnder(pkg);
+      if (found) targets.push(found);
+      targets.push(path.join(pkg, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json"));
     }
   } catch {}
-
-  // 1. An existing config inside the Store package wins - that's the file Store Claude loads.
-  if (storePkg) {
-    const likely = path.join(storePkg, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json");
-    if (fs.existsSync(likely)) return likely;
-    const found = findConfigUnder(storePkg);
-    if (found) return found;
-  }
-  // 2. Otherwise an existing standard config (the .exe / .msi install).
-  if (fs.existsSync(standard)) return standard;
-  // 3. Store package present but no config yet (Claude not launched once): target its
-  //    redirected Roaming path so the next launch reads it.
-  if (storePkg) return path.join(storePkg, "LocalCache", "Roaming", "Claude", "claude_desktop_config.json");
-  // 4. Fresh .exe-style default.
-  return standard;
-}
-
-function globalConfigPath() {
-  if (process.platform === "win32") return windowsConfigPath();
-  if (process.platform === "darwin") {
-    return path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json");
-  }
-  return path.join(os.homedir(), ".config", "Claude", "claude_desktop_config.json");
+  return [...new Set(targets)];
 }
 
 function readJsonIfAny(file) {
@@ -126,40 +115,34 @@ console.log("Registering the WhatsApp MCP...");
 console.log("  server entry:", process.execPath, indexPath);
 console.log("");
 
-const configPath = globalConfigPath();
-
-try {
-  const result = mergeIntoConfig(configPath);
-  if (result === "already") {
-    console.log("OK - config already had the whatsapp entry. No change needed.");
-  } else {
-    console.log("OK - whatsapp entry written to the Claude/Cowork config:");
-    console.log("     " + configPath);
+const targets = configTargets();
+const okPaths = [];
+const failPaths = [];
+for (const t of targets) {
+  try {
+    mergeIntoConfig(t);
+    const check = JSON.parse(fs.readFileSync(t, "utf8"));
+    const got = check?.mcpServers?.whatsapp;
+    if (!got || got.args?.[0] !== indexPath) throw new Error("entry did not verify after write");
+    okPaths.push(t);
+  } catch (e) {
+    failPaths.push(t + "  ->  " + e.message);
   }
-} catch (e) {
-  console.error("FAILED to write the global config:", e.message);
+}
+
+if (okPaths.length === 0) {
+  console.error("FAILED to register in ANY Claude config location:");
+  for (const f of failPaths) console.error("  " + f);
   console.error("");
-  console.error("This script must run on the machine where Cowork/Claude Desktop");
-  console.error("is installed (run windows\\install.bat by double-clicking it).");
-  console.error("Target config: " + configPath);
+  console.error("Run this on the machine where Claude Desktop is installed (double-click INSTALL.bat).");
   process.exit(1);
 }
 
-// Verify the entry actually landed where Cowork reads it - never claim success blind.
-try {
-  const check = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  const got = check?.mcpServers?.whatsapp;
-  if (!got || got.args?.[0] !== indexPath) throw new Error("whatsapp entry missing or wrong after write");
-  console.log("");
-  console.log("VERIFIED - this is the exact file Cowork loads on launch:");
-  console.log("     " + configPath);
-  console.log("     whatsapp -> " + got.command);
-} catch (e) {
-  console.error("");
-  console.error("Wrote the file but the whatsapp entry did NOT verify in:");
-  console.error("     " + configPath);
-  console.error("Reason: " + e.message);
-  process.exit(1);
+console.log("VERIFIED - wrote + confirmed the whatsapp entry in " + okPaths.length + " location(s) Claude may load:");
+for (const p of okPaths) console.log("     " + p);
+console.log("     whatsapp -> " + process.execPath);
+if (failPaths.length) {
+  console.log("  (skipped " + failPaths.length + " location(s) that couldn't be written - harmless if the above are correct)");
 }
 
 console.log("");
